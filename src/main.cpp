@@ -321,30 +321,24 @@ void Backward(unsigned long duration,int Speed){
   LeftStop();
 }
 
+
 void AccForward(unsigned long duration,int Speed){ 
   int rightspeed = Speed, leftspeed = Speed; 
   float error; 
-  int kp = 10; 
+  int kp = 15; 
   maintain_cor(); 
   float init_x = total_x; 
-    for(int i = 0; i < duration; i += 10){
+    for(int i = 0; i < duration; i ++){
         maintain_cor();
         error = init_x - total_x; 
-        if (error < 0){ 
-            rightspeed = rightspeed;
-            leftspeed = leftspeed + kp * std::abs(error); 
-        } else if (error > 0){ 
-            rightspeed = rightspeed + kp * std::abs(error); 
-            leftspeed = leftspeed; 
+        if (i % 2){
+            rightspeed = rightspeed + kp * (error > 0 ? error : 0);
+            leftspeed = leftspeed + kp * (error < 0 ? -error : 0);
         } else {
-            rightspeed = rightspeed; 
-            leftspeed = rightspeed; 
+            rightspeed = rightspeed - kp * (error > 0 ? error : 0);
+            leftspeed = leftspeed - kp * (error < 0 ? -error : 0);
         }
-        if (rightspeed + leftspeed > 2* Speed + 30){ 
-          
-        }
-
-
+       
         if(rightspeed > 100) {
             rightspeed = 100; 
         }
@@ -358,38 +352,6 @@ void AccForward(unsigned long duration,int Speed){
     LeftStop();
 }
 
-void AccForwardBangBang(unsigned long duration,int Speed){ 
-  int rightspeed = Speed, leftspeed = Speed; 
-  float error; 
-  int dspeed = 10; 
-  maintain_cor(); 
-  float init_x = total_x; 
-    for(int i = 0; i < duration; i += 10){
-        maintain_cor();
-        error = init_x - total_x; 
-        if (error < 0){ 
-            rightspeed = Speed - dspeed;
-            leftspeed = Speed + dspeed; 
-        } else if (error > 0){ 
-            rightspeed = Speed + dspeed; 
-            leftspeed = Speed - dspeed; 
-        } else {
-            rightspeed = Speed; 
-            leftspeed = Speed; 
-        }
-
-        if(rightspeed > 100) {
-            rightspeed = 100; 
-        }
-        if (leftspeed > 100) {
-            leftspeed = 100; 
-        }
-        RightCW(rightspeed); 
-        LeftCW(leftspeed); 
-    }
-    RightStop();
-    LeftStop();
-}
 
 void loop() {
   // put your main code here, to run repeatedly:
