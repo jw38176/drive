@@ -1,23 +1,26 @@
 from cmath import pi
 import serial
-from math import acos, asin, atan
+import math
 from turtle import *
-rover = serial.Serial('COM4', 115200, timeout = 3)
+
+rover = serial.Serial('COM4', 9600, timeout = 3)
 print(rover.name)
 
-setheading(90)
+
 
 while True:
     data = rover.readline().strip().decode('utf-8')
-    rover.flush()
     d = data.split(",")
-    distance_x = - float(d[0])*100
-    distance_y = - float(d[1])*100
-    goto(distance_x, distance_y)
+    rightspeed = int(d[0])
+    leftspeed = int(d[1])
+    
+    leftg = int(leftspeed/5) * "*" + int(20-leftspeed/5) * "o"
+    rightg = int(20-rightspeed/5) * "o" + int(rightspeed/5) * "*"
+    print(leftg + "||" + rightg)
+    #print ( rightspeed + "||" + leftspeed)
+    #headings = (asin((distance_x/100)/13.5)*180/pi)
 
-    headings = (asin((distance_x/100)/13.5)*180/pi)
-
-    setheading(90+headings)
-    print(headings)
+    #setheading(90+headings)
+    #print(headings)
 
 rover.close() 

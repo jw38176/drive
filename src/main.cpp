@@ -1,8 +1,19 @@
 #include <Arduino.h>
 #include "SPI.h"
+#include <thread> 
+#include <vector> 
+#include <cmath>
 
-// these pins may be different on different boards
+//motor pins
+#define PWMA 2
+#define AI2 15
+#define AI1 4
+#define STNDBY 14
+#define BI1 33
+#define BI2 32
+#define PWMB 25
 
+//IR camera pins
 #define PIN_SS        5
 #define PIN_MISO      19
 #define PIN_MOSI      23
@@ -55,7 +66,6 @@
 float total_x = 0;
 float total_y = 0;
 
-
 float total_x1 = 0;
 float total_y1 = 0;
 
@@ -71,7 +81,6 @@ float distance_y=0;
 
 volatile byte movementflag=0;
 volatile int xydat[2];
-
 
 int convTwosComp(int b){
   //Convert from 2's complement
@@ -198,106 +207,196 @@ int mousecam_frame_capture(byte *pdata)
   return ret;
 }
 
-void setup()
-{
-  pinMode(PIN_SS,OUTPUT);
-  pinMode(PIN_MISO,INPUT);
-  pinMode(PIN_MOSI,OUTPUT);
-  pinMode(PIN_SCK,OUTPUT);
+void setup() {
+    //motor initialize 
+    pinMode(PWMA, OUTPUT);
+    pinMode(PWMB, OUTPUT);
+    pinMode(AI1, OUTPUT);
+    pinMode(AI2, OUTPUT);
+    pinMode(BI1, OUTPUT);
+    pinMode(BI2, OUTPUT);
+    pinMode(STNDBY, OUTPUT);
+
+    //IR camera initialize 
+      pinMode(PIN_SS,OUTPUT);
+    pinMode(PIN_MISO,INPUT);
+    pinMode(PIN_MOSI,OUTPUT);
+    pinMode(PIN_SCK,OUTPUT);
 
 
-  SPI.begin();
-  SPI.setClockDivider(SPI_CLOCK_DIV32); // originanlly SPI_CLOCK_DIV32
-  SPI.setDataMode(SPI_MODE3);
-  SPI.setBitOrder(MSBFIRST);
+    SPI.begin();
+    SPI.setClockDivider(SPI_CLOCK_DIV32);
+    SPI.setDataMode(SPI_MODE3);
+    SPI.setBitOrder(MSBFIRST);
 
-  Serial.begin(115200);
+    Serial.begin(9600);
 
-  if(mousecam_init()==-1)
-  {
-    Serial.println("Mouse cam failed to init");
-    while(1);
-  }
-
-  // Tanmay changed this
-  mousecam_write_reg(ADNS3080_FRAME_PERIOD_LOWER, LOW_FRAME_LOWER);
-  mousecam_write_reg(ADNS3080_FRAME_PERIOD_UPPER, LOW_FRAME_UPPER);
-}
-
-char asciiart(int k)
-{
-  static char foo[] = "WX86*3I>!;~:,`. ";
-  return foo[k>>4];
-}
-
-byte frame[ADNS3080_PIXELS_X * ADNS3080_PIXELS_Y];
-
-void loop()
-{
- #if 0
-/*
-    if(movementflag){
-
-    tdistance = tdistance + convTwosComp(xydat[0]);
-    Serial.println("Distance = " + String(tdistance));
-    movementflag=0;
-    delay(3);
-    }
-
-  */
-  // if enabled this section grabs frames and outputs them as ascii art
-
-  if(mousecam_frame_capture(frame)==0)
-  {
-    int i,j,k;
-    for(i=0, k=0; i<ADNS3080_PIXELS_Y; i++)
+    if(mousecam_init()==-1)
     {
-      for(j=0; j<ADNS3080_PIXELS_X; j++, k++)
-      {
-        Serial.print(asciiart(frame[k]));
-        Serial.print(' ');
-      }
-      Serial.println();
+        Serial.println("Mouse cam failed to init");
+        while(1);
     }
-  }
-  Serial.println();
-  delay(250);
 
-  #else
-
-  // if enabled this section produces a bar graph of the surface quality that can be used to focus the camera
-  // also drawn is the average pixel value 0-63 and the shutter speed and the motion dx,dy.
-
-  //int val = mousecam_read_reg(ADNS3080_PIXEL_SUM);
-  MD md;
-  mousecam_read_motion(&md);
-  /*
-  for(int i=0; i<md.squal/4; i++)
-    Serial.print('*');
-  Serial.print(' ');
-  Serial.print((val*100)/351);
-  Serial.print(' ');
-  Serial.print(md.shutter); Serial.print(" (");
-  Serial.print((int)md.dx); Serial.print(',');
-  Serial.print((int)md.dy); Serial.println(')');
-  */
-  // Serial.println(md.max_pix);
-  delay(10);
-
-
-distance_x = convTwosComp(md.dx);
-distance_y = convTwosComp(md.dy);
-
-total_x1 = total_x1 + distance_x;
-total_y1 = total_y1 + distance_y;
-
-total_x = total_x1/157.0;
-total_y = total_y1/157.0;
-
-
-Serial.println(String(total_x) + "," + String(total_y));
-
-  delay(100);
-
-  #endif
+    // Tanmay changed this
+    mousecam_write_reg(ADNS3080_FRAME_PERIOD_LOWER, LOW_FRAME_LOWER);
+    mousecam_write_reg(ADNS3080_FRAME_PERIOD_UPPER, LOW_FRAME_UPPER);
 }
+
+void maintain_cor(){
+  MD md; 
+  mousecam_read_motion(&md);
+  distance_x = convTwosComp(md.dx);
+  distance_y = convTwosComp(md.dy);
+  total_x1 = total_x1 + distance_x;
+  total_y1 = total_y1 + distance_y;
+  total_x = total_x1/157.0;
+  total_y = total_y1/157.0;
+  delay(10);
+}
+
+void arm(){
+  digitalWrite(STNDBY, HIGH);
+}
+void disarm(){
+  digitalWrite(STNDBY, LOW);
+}
+void RightCW(int Speed){
+  int DutyRef = map(Speed,0,100,0,256);
+  digitalWrite(AI1, LOW);
+  digitalWrite(AI2, HIGH);
+  analogWrite(PWMA , DutyRef);
+}
+void RightCCW(int Speed){
+  int DutyRef = map(Speed,0,100,0,256);
+  digitalWrite(AI1, HIGH);
+  digitalWrite(AI2, LOW);
+  analogWrite(PWMA , DutyRef);
+}
+void LeftCW(int Speed){
+  int DutyRef = map(Speed,0,100,0,256);
+  digitalWrite(BI1, LOW);
+  digitalWrite(BI2, HIGH);
+  analogWrite(PWMB , DutyRef);
+}
+void LeftCCW(int Speed){
+  int DutyRef = map(Speed,0,100,0,256);
+  digitalWrite(BI1, HIGH);
+  digitalWrite(BI2, LOW);
+  analogWrite(PWMB , DutyRef);
+}
+void RightStop(){
+  digitalWrite(AI1, LOW);
+  digitalWrite(AI2, LOW);
+}
+void LeftStop(){
+  digitalWrite(BI1, LOW);
+  digitalWrite(BI2, LOW);
+}
+void RightTurn_Spot(unsigned long duration, int Speed){
+  RightCCW(Speed);
+  LeftCW(Speed);
+  delay(duration);
+  RightStop();
+  LeftStop();
+}
+void LeftTurn_Spot(unsigned long duration,int Speed){
+    LeftCCW(Speed);
+    RightCW(Speed);
+    delay(duration);
+    RightStop();
+    LeftStop();
+}
+void Forward(int duration,int Speed){
+  LeftCW(Speed);
+  RightCW(Speed);
+  delay(duration);
+  RightStop();
+  LeftStop();
+}
+void Backward(unsigned long duration,int Speed){
+  LeftCCW(Speed);
+  RightCCW(Speed);
+  delay(duration);
+  RightStop();
+  LeftStop();
+}
+
+void AccForward(unsigned long duration,int Speed){ 
+  int rightspeed = Speed, leftspeed = Speed; 
+  float error; 
+  int kp = 10; 
+  maintain_cor(); 
+  float init_x = total_x; 
+    for(int i = 0; i < duration; i += 10){
+        maintain_cor();
+        error = init_x - total_x; 
+        if (error < 0){ 
+            rightspeed = rightspeed;
+            leftspeed = leftspeed + kp * std::abs(error); 
+        } else if (error > 0){ 
+            rightspeed = rightspeed + kp * std::abs(error); 
+            leftspeed = leftspeed; 
+        } else {
+            rightspeed = rightspeed; 
+            leftspeed = rightspeed; 
+        }
+        if (rightspeed + leftspeed > 2* Speed + 30){ 
+          
+        }
+
+
+        if(rightspeed > 100) {
+            rightspeed = 100; 
+        }
+        if (leftspeed > 100) {
+            leftspeed = 100; 
+        }
+        RightCW(rightspeed); 
+        LeftCW(leftspeed); 
+    }
+    RightStop();
+    LeftStop();
+}
+
+void AccForwardBangBang(unsigned long duration,int Speed){ 
+  int rightspeed = Speed, leftspeed = Speed; 
+  float error; 
+  int dspeed = 10; 
+  maintain_cor(); 
+  float init_x = total_x; 
+    for(int i = 0; i < duration; i += 10){
+        maintain_cor();
+        error = init_x - total_x; 
+        if (error < 0){ 
+            rightspeed = Speed - dspeed;
+            leftspeed = Speed + dspeed; 
+        } else if (error > 0){ 
+            rightspeed = Speed + dspeed; 
+            leftspeed = Speed - dspeed; 
+        } else {
+            rightspeed = Speed; 
+            leftspeed = Speed; 
+        }
+
+        if(rightspeed > 100) {
+            rightspeed = 100; 
+        }
+        if (leftspeed > 100) {
+            leftspeed = 100; 
+        }
+        RightCW(rightspeed); 
+        LeftCW(leftspeed); 
+    }
+    RightStop();
+    LeftStop();
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  arm();
+  AccForwardBangBang(4000, 60);
+  disarm();
+
+  delay(2000);
+}
+
