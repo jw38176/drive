@@ -348,8 +348,8 @@ void AccForward(unsigned long duration,int Speed){
         if (leftspeed < Speed - bound) {
           leftspeed = Speed - bound; 
         }
-        if (leftspeed < Speed - 10) {
-          leftspeed = Speed - 10; 
+        if (leftspeed < Speed - bound) {
+          leftspeed = Speed - bound; 
         }
         RightCCW(rightspeed); 
         LeftCCW(leftspeed); 
