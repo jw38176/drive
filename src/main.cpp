@@ -324,32 +324,21 @@ void Backward(unsigned long duration,int Speed){
 
 void AccForward(unsigned long duration,int Speed){ 
   float rightspeed = Speed, leftspeed = Speed; 
-  float error; 
-  int kp = 1; 
-  int bound = 20; 
-  maintain_cor(); 
+  float error, cumerr; 
+  float kp = 0.5;
+  float ki = 0;  
+  int bound = 20;
+  //maintain_cor(); 
   float init_x = total_x; 
     for(int i = 0; i < duration; i ++){
-        maintain_cor(); 
-        error = init_x - total_x; 
-        rightspeed = rightspeed - (kp * error);
-        leftspeed = leftspeed + (kp * error);
-        if (std::abs(error) < 0.3){ 
-          leftspeed = Speed; 
+        //maintain_cor(); 
+        //error = init_x - total_x; 
+        cumerr = cumerr + error;
+        rightspeed = rightspeed - (kp * total_x) - (ki * cumerr);
+        leftspeed = leftspeed + (kp * total_x) + (ki * cumerr);
+        if (std::abs(total_x) < 0.1) {
           rightspeed = Speed; 
-          //init_x = total_x;
-        }
-        if (leftspeed > Speed + bound) {
-          leftspeed = Speed + bound; 
-        }
-        if (rightspeed > Speed + bound) {
-          rightspeed = Speed + bound; 
-        }
-        if (leftspeed < Speed - bound) {
-          leftspeed = Speed - bound; 
-        }
-        if (leftspeed < Speed - bound) {
-          leftspeed = Speed - bound; 
+          leftspeed = Speed; 
         }
         RightCCW(rightspeed); 
         LeftCCW(leftspeed); 
@@ -398,6 +387,6 @@ void loop() {
   AccForward(4000, 60);
   disarm();
 
-  delay(2000);
+  delay(1);
 }
 
