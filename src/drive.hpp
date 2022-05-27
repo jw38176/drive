@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "SPI.h"
+#include <vector>
 
 //motor pins
 #define PWMA 2
@@ -114,7 +115,7 @@ void AccForwardBangBang(unsigned long duration,int Speed, float &total_x, float 
 
 void AccForward(unsigned long duration,int Speed, float &total_x, float &total_y){ 
   float rightspeed = Speed, leftspeed = Speed; 
-  float error, cumerr; 
+  float error; 
   float kp = 0.5;
   maintain_cor(total_x, total_y); 
   float init_x = total_x; 
@@ -123,12 +124,19 @@ void AccForward(unsigned long duration,int Speed, float &total_x, float &total_y
         error = init_x - total_x; 
         rightspeed = rightspeed - (kp * error);
         leftspeed = leftspeed + (kp * error);
-        if (std::abs(error) < 0.1) {
-          rightspeed = Speed; 
-          leftspeed = Speed; 
-        }
         RightCCW(rightspeed); 
         LeftCCW(leftspeed); 
+    }
     RightStop();
     LeftStop();
 }
+
+std::vector<float> Setspeed(int Speed, float &total_x, float &total_y, float &init_x) {
+  float rightspeed = Speed, leftspeed = Speed; 
+  maintain_cor(total_x, total_y); 
+  float error = init_x - total_x; 
+  rightspeed = rightspeed + (2 * error);
+  leftspeed = leftspeed - (2 * error);
+  return {leftspeed,rightspeed}; 
+}
+
