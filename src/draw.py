@@ -6,18 +6,20 @@ from turtle import *
 rover = serial.Serial('COM4', 9600, timeout = 3)
 print(rover.name)
 
+data = rover.readline()
+data = rover.readline()
 
 
 while True:
     data = rover.readline().strip().decode('utf-8')
-    d = data.split(",")
-    rightspeed = int(d[0])
-    leftspeed = int(d[1])
+    print(data)
+    goto(data)
+    #d = data.split(",")
+    #total_x = float(d[0])
+    #total_y = float(d[1])
+
+    #goto(total_x, total_y)
     
-    leftg = int(leftspeed/5) * "*" + int(20-leftspeed/5) * "o"
-    rightg = int(20-rightspeed/5) * "o" + int(rightspeed/5) * "*"
-    print(leftg + "||" + rightg)
-    #print ( rightspeed + "||" + leftspeed)
     #headings = (asin((distance_x/100)/13.5)*180/pi)
 
     #setheading(90+headings)

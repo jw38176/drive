@@ -249,8 +249,8 @@ void maintain_cor(){
   distance_y = convTwosComp(md.dy);
   total_x1 = total_x1 + distance_x;
   total_y1 = total_y1 + distance_y;
-  total_x = total_x1/157.0;
-  total_y = total_y1/157.0;
+  total_x = total_x1 * 0.206375;
+  total_y = total_y1 * 0.206375;
   delay(10);
 }
 
@@ -323,22 +323,61 @@ void Backward(unsigned long duration,int Speed){
 
 
 void AccForward(unsigned long duration,int Speed){ 
-  int rightspeed = Speed, leftspeed = Speed; 
+  float rightspeed = Speed, leftspeed = Speed; 
   float error; 
-  int kp = 15; 
+  int kp = 1; 
+  int bound = 20; 
   maintain_cor(); 
   float init_x = total_x; 
     for(int i = 0; i < duration; i ++){
+        maintain_cor(); 
+        error = init_x - total_x; 
+        rightspeed = rightspeed - (kp * error);
+        leftspeed = leftspeed + (kp * error);
+        if (std::abs(error) < 0.3){ 
+          leftspeed = Speed; 
+          rightspeed = Speed; 
+          //init_x = total_x;
+        }
+        if (leftspeed > Speed + bound) {
+          leftspeed = Speed + bound; 
+        }
+        if (rightspeed > Speed + bound) {
+          rightspeed = Speed + bound; 
+        }
+        if (leftspeed < Speed - bound) {
+          leftspeed = Speed - bound; 
+        }
+        if (leftspeed < Speed - 10) {
+          leftspeed = Speed - 10; 
+        }
+        RightCCW(rightspeed); 
+        LeftCCW(leftspeed); 
+        Serial.println(String(rightspeed) + "," + String(leftspeed) + "| " + String(error));
+    }
+    RightStop();
+    LeftStop();
+}
+
+void AccForwardBangBang(unsigned long duration,int Speed){ 
+  int rightspeed = Speed, leftspeed = Speed; 
+  float error; 
+  int dspeed = 10; 
+  maintain_cor(); 
+  float init_x = total_x; 
+    for(int i = 0; i < duration; i += 10){
         maintain_cor();
         error = init_x - total_x; 
-        if (i % 2){
-            rightspeed = rightspeed + kp * (error > 0 ? error : 0);
-            leftspeed = leftspeed + kp * (error < 0 ? -error : 0);
+        if (error < 0){ 
+            rightspeed = Speed - dspeed;
+            leftspeed = Speed + dspeed; 
+        } else if (error > 0){ 
+            rightspeed = Speed + dspeed; 
+            leftspeed = Speed - dspeed; 
         } else {
-            rightspeed = rightspeed - kp * (error > 0 ? error : 0);
-            leftspeed = leftspeed - kp * (error < 0 ? -error : 0);
+            rightspeed = Speed; 
+            leftspeed = Speed; 
         }
-       
         if(rightspeed > 100) {
             rightspeed = 100; 
         }
@@ -347,16 +386,16 @@ void AccForward(unsigned long duration,int Speed){
         }
         RightCW(rightspeed); 
         LeftCW(leftspeed); 
+        Serial.println(String(error));
     }
     RightStop();
     LeftStop();
 }
 
-
 void loop() {
   // put your main code here, to run repeatedly:
   arm();
-  AccForwardBangBang(4000, 60);
+  AccForward(4000, 60);
   disarm();
 
   delay(2000);
