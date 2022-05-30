@@ -8,10 +8,8 @@ bool forward = false; bool backward = false;
 bool rotate = false; bool stop = false; 
 
 hw_timer_t * timer = NULL;
-volatile uint32_t isrCounter = 0;
-volatile uint32_t lastIsrAt = 0;
 
-bool sample = false;
+volatile bool sample = false;
 
 void ARDUINO_ISR_ATTR onTimer(){
   sample = true;
@@ -19,6 +17,8 @@ void ARDUINO_ISR_ATTR onTimer(){
 
 void setup() {
   Serial.begin(9600);
+  millis();
+  delay(5000);
   noInterrupts();
   //code to interrupt every 10ms
   timer = timerBegin(0,80,true);
@@ -57,6 +57,10 @@ void setup() {
 
   interrupts();
 }
+float leftspeed=0;float rightspeed=0; float speed =60;
+float total_x=0; float total_y=0; float initial_x=0;
+float initial_y=0; float error_currentx;
+bool firstiteration=1;
 void loop() {
   // put your main code here, to run repeatedly:
   // unsigned long currenttime = millis();
@@ -67,13 +71,27 @@ void loop() {
   //}
   forward = true;
   rotate = false;
-  if (forward){
-    if (sample){//need to test
-      update_pos();
-      Forward(60);
 
+  if (forward){
+    if (sample){//need to 
+      if (firstiteration){
+        leftspeed = rightspeed = speed;
+        update_pos(total_x,total_y);
+        initial_x = total_x; initial_y = total_y;
+        firstiteration = false;
+      }
+      update_pos(total_x,total_y);
+      error_currentx = initial_x- total_x;
+      Serial.println(error_currentx);
+      Forward(leftspeed,rightspeed,speed,error_currentx);
+      Serial.print(leftspeed); Serial.print(" || ");
+      Serial.print(rightspeed);
       sample = false;
     }
    }
+  else{
+    firstiteration = true;
+  }
 
+  
 }

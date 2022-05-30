@@ -88,7 +88,8 @@ void mousecam_read_motion(struct MD *p);
 int mousecam_frame_capture(byte *pdata);
 
 
-std::vector<float> update_pos();
+
+void update_pos(float &total_x1, float &total_y1);
 void arm();
 void disarm();
 void RightForward(float rightspeed);
@@ -100,7 +101,7 @@ void LeftStop();
 
 
 
-void Forward(float speed);
+void Forward(float &leftspeed,float &rightspeed,float speed,float current_error);
 void Backward(float speed);
 
 void clockwise(float speed, float angle);

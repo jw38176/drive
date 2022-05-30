@@ -59,12 +59,6 @@
 #define LOW_FRAME_LOWER        0x7e
 #define LOW_FRAME_UPPER        0x0e
 
-float kp,ki;
-float  speed_max = 100; float speed_min = 0;//anti-wind up attempt. Doubt this will work.
-                                    //assuming bounds need to be set for speed of each motor
-float delta_speed, initial_speed, new_speed;
-float current_error, previous_error;
-
 
 
 // void ARDUINO_ISR_ATTR onTimer(){
@@ -79,31 +73,30 @@ float saturation(float sat_input, float upperlimit, float lowerlimit){
   else if (sat_input < lowerlimit){
     sat_input = lowerlimit;
   }
-  else;
   return sat_input;
 }
 // pi control, not sure, not used atm
-float pi(float pi_input){
-  float e_integration;
-  e_integration = pi_input;
+// float pi(float pi_input){
+//   float e_integration;
+//   e_integration = pi_input;
 
-  if(initial_speed >= 100){
-    e_integration = 0;
-  }
-  else if (initial_speed <= 0){
-    e_integration = 0;
-  }
+//   if(initial_speed >= 100){
+//     e_integration = 0;
+//   }
+//   else if (initial_speed <= 0){
+//     e_integration = 0;
+//   }
   
-  delta_speed = kp*(current_error - previous_error) + ki*e_integration; //sampling time missing in ki multiplication
-  new_speed = initial_speed + delta_speed;
+//   delta_speed = kp*(current_error - previous_error) + ki*e_integration; //sampling time missing in ki multiplication
+//   new_speed = initial_speed + delta_speed;
 
-  saturation(new_speed,speed_max,speed_min);
+//   saturation(new_speed,speed_max,speed_min);
 
-  initial_speed = new_speed;
-  previous_error =  current_error;
+//   initial_speed = new_speed;
+//   previous_error =  current_error;
   
-  return new_speed;
-}
+//   return new_speed;
+// }
 
 int convTwosComp(int b)
 {
@@ -209,19 +202,16 @@ int mousecam_frame_capture(byte *pdata)
   return ret;
 }
 
-std::vector<float> update_pos(){
+void update_pos(float &total_x1,float &total_y1){
   MD md;
   mousecam_read_motion(&md);
   float distance_x = convTwosComp(md.dx);
   float distance_y = convTwosComp(md.dy);
-  float total_x1 = total_x1 + distance_x;
-  float total_y1 = total_y1 + distance_y;
-  float total_x = total_x1 * 0.206375;
-  float total_y = total_y1 * 0.206375;
+  total_x1 = total_x1 + distance_x*0.206375;
+  total_y1 = total_y1 + distance_y*0.206375;
   //delay(10);//check later1
-  std::vector<float> total{total_x,total_y};
-  return total;
 }
+
 void arm(){
   digitalWrite(STNDBY, HIGH);
 }
@@ -263,40 +253,38 @@ void LeftStop(){
 // can convert all of these to angle requirements instead of total_x
 //need to add position and velocity control after making sure these work
 
-void Forward(float speed){
-  float rightspeed = speed; float leftspeed = speed;
-  float bound;
-  float current_error = update_pos()[0];
-  float new_rightspeed = rightspeed + 0.5*current_error;
-  float new_leftspeed = leftspeed - 0.5*current_error;
-  float rightspeed_sat = saturation(new_rightspeed, speed + bound,speed - bound);
-  float leftspeed_sat = saturation(new_leftspeed, speed + bound, speed - bound );
+void Forward(float &leftspeed,float &rightspeed,float speed,float current_error){
+  float bound = 10.0;
+  rightspeed = rightspeed + 1*current_error;
+  leftspeed = leftspeed - 1*current_error;
+  float rightspeed_sat = saturation(rightspeed, speed + bound,speed - bound);
+  float leftspeed_sat = saturation(leftspeed, speed + bound, speed - bound );
   RightForward(rightspeed_sat);
   LeftForward(leftspeed_sat);
 }
-void Backward(float speed){
-  float rightspeed = speed; float leftspeed = speed;
-  float bound;
-  update_pos();
-  float current_error = update_pos()[0];
-  float new_rightspeed = rightspeed + kp*current_error;//might need to change these
-  float new_leftspeed = leftspeed - kp*current_error;
-  float rightspeed_sat = saturation(new_rightspeed, speed + bound,speed - bound);
-  float leftspeed_sat = saturation(new_leftspeed, speed + bound, speed - bound );
-  RightBackward(rightspeed_sat);
-  LeftBackward(leftspeed_sat);
-}
+// void Backward(float speed){
+//   float rightspeed = speed; float leftspeed = speed;
+//   float bound;
+//   update_pos();
+//   float current_error = update_pos()[0];
+//   float new_rightspeed = rightspeed + kp*current_error;//might need to change these
+//   float new_leftspeed = leftspeed - kp*current_error;
+//   float rightspeed_sat = saturation(new_rightspeed, speed + bound,speed - bound);
+//   float leftspeed_sat = saturation(new_leftspeed, speed + bound, speed - bound );
+//   RightBackward(rightspeed_sat);
+//   LeftBackward(leftspeed_sat);
+// }
 
-void clockwise(float speed, float angle){
-  float r = 135;
-  float angle_rad = angle * (3.14159265359/180);
-  float delta_x = angle_rad * r;
-if (update_pos()[0] < delta_x){
-    LeftForward(speed);
-    RightForward(speed);
-}
-else{
-    LeftStop();
-    RightStop();
-}
-}
+// void clockwise(float speed, float angle){
+//   float r = 135;
+//   float angle_rad = angle * (3.14159265359/180);
+//   float delta_x = angle_rad * r;
+// if (update_pos()[0] < delta_x){
+//     LeftForward(speed);
+//     RightForward(speed);
+// }
+// else{
+//     LeftStop();
+//     RightStop();
+// }
+// }
