@@ -85,9 +85,6 @@ struct MD
 };
 
 void mousecam_read_motion(struct MD *p);
-int mousecam_frame_capture(byte *pdata);
-
-
 
 void update_pos(float &total_x1, float &total_y1);
 void arm();
@@ -99,11 +96,15 @@ void LeftForward(float leftspeed);
 void RightStop();
 void LeftStop();
 
+void Rotate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float &current_angle, float start_angle, float desired_angle, float kp, bool &done_rotation);
+void Translate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float distance_to_move, float kp, bool &done_translation);
 
+void Forward(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float gain);
+void Backward(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float gain);
 
-void Forward(float &leftspeed,float &rightspeed,float speed,float current_error);
-void Backward(float speed);
+void Move(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float kp);
+void Turn(float &leftspeed,float &rightspeed,float speed,float initial_y, float current_y, float kp);
 
-void clockwise(float speed, float angle);
+void Clockwise(float speed, float angle);
 
 #endif

@@ -3,7 +3,7 @@
 #include <vector>
 #include "drive.hpp"
 
-
+#define ROVER 2 // Rover 1 and 2 have slight differences. This allows the code to compensate.
 
 #define PWMA 2
 #define AI2 15
@@ -65,16 +65,7 @@
 //   bool sample = true;
 // }
 
-//saturation code
-float saturation(float sat_input, float upperlimit, float lowerlimit){
-  if (sat_input > upperlimit){
-    sat_input = upperlimit;
-  }
-  else if (sat_input < lowerlimit){
-    sat_input = lowerlimit;
-  }
-  return sat_input;
-}
+
 // pi control, not sure, not used atm
 // float pi(float pi_input){
 //   float e_integration;
@@ -159,48 +150,6 @@ void mousecam_read_motion(struct MD *p)
   digitalWrite(PIN_MOUSECAM_CS,HIGH);
   delayMicroseconds(5);
 }
- 
-// pdata must point to an array of size ADNS3080_PIXELS_X x ADNS3080_PIXELS_Y
-// you must call mousecam_reset() after this if you want to go back to normal operation
-int mousecam_frame_capture(byte *pdata)
-{
-  mousecam_write_reg(ADNS3080_FRAME_CAPTURE,0x83);
-  digitalWrite(PIN_MOUSECAM_CS, LOW);
-  SPI.transfer(ADNS3080_PIXEL_BURST);
-  delayMicroseconds(50);
-  int pix;
-  byte started = 0;
-  int count;
-  int timeout = 0;
-  int ret = 0;
-  for(count = 0; count < ADNS3080_PIXELS_X * ADNS3080_PIXELS_Y; )
-  {
-    pix = SPI.transfer(0xff);
-    delayMicroseconds(10);
-    if(started==0)
-    {
-      if(pix&0x40)
-        started = 1;
-      else
-      {
-        timeout++;
-        if(timeout==100)
-        {
-          ret = -1;
-          break;
-        }
-      }
-    }
-    if(started==1)
-    {
-      pdata[count++] = (pix & 0x3f)<<2; // scale to normal grayscale byte range
-    }
-  }
- 
-  digitalWrite(PIN_MOUSECAM_CS,HIGH);
-  delayMicroseconds(14);
-  return ret;
-}
 
 void update_pos(float &total_x1,float &total_y1){
   MD md;
@@ -209,7 +158,20 @@ void update_pos(float &total_x1,float &total_y1){
   float distance_y = convTwosComp(md.dy);
   total_x1 = total_x1 + distance_x*0.206375;
   total_y1 = total_y1 + distance_y*0.206375;
-  //delay(10);//check later1
+}
+
+// saturation revised
+float saturation(float sat_input, float upperlimit, float lowerlimit){
+  if (sat_input > 0) {
+    if (sat_input > upperlimit) sat_input = upperlimit;
+    else if (sat_input < lowerlimit) sat_input = lowerlimit;
+    else sat_input = sat_input;
+  }  else {
+    if (sat_input < upperlimit) sat_input = upperlimit;     // upperlimit is more negative than lowerlimit ==> more speed
+    else if (sat_input > lowerlimit) sat_input = lowerlimit;
+    else sat_input = sat_input;
+  }
+  return sat_input;
 }
 
 void arm(){
@@ -250,41 +212,131 @@ void LeftStop(){
   digitalWrite(BI1, LOW);
   digitalWrite(BI2, LOW);
 }
-// can convert all of these to angle requirements instead of total_x
-//need to add position and velocity control after making sure these work
 
-void Forward(float &leftspeed,float &rightspeed,float speed,float current_error){
-  float bound = 10.0;
-  rightspeed = rightspeed + 1*current_error;
-  leftspeed = leftspeed - 1*current_error;
-  float rightspeed_sat = saturation(rightspeed, speed + bound,speed - bound);
-  float leftspeed_sat = saturation(leftspeed, speed + bound, speed - bound );
-  RightForward(rightspeed_sat);
-  LeftForward(leftspeed_sat);
+void Right(float speed){
+  if ((100 > speed) && (speed > 0)) {
+    RightForward(speed);
+  } else if ((0 > speed) && (speed > -100)) {
+    RightBackward(-speed);
+  } else if (speed == 0){
+    RightStop();
+  } else {
+  }
 }
-// void Backward(float speed){
-//   float rightspeed = speed; float leftspeed = speed;
-//   float bound;
-//   update_pos();
-//   float current_error = update_pos()[0];
-//   float new_rightspeed = rightspeed + kp*current_error;//might need to change these
-//   float new_leftspeed = leftspeed - kp*current_error;
-//   float rightspeed_sat = saturation(new_rightspeed, speed + bound,speed - bound);
-//   float leftspeed_sat = saturation(new_leftspeed, speed + bound, speed - bound );
-//   RightBackward(rightspeed_sat);
-//   LeftBackward(leftspeed_sat);
-// }
 
-// void clockwise(float speed, float angle){
-//   float r = 135;
-//   float angle_rad = angle * (3.14159265359/180);
-//   float delta_x = angle_rad * r;
-// if (update_pos()[0] < delta_x){
-//     LeftForward(speed);
-//     RightForward(speed);
-// }
-// else{
-//     LeftStop();
-//     RightStop();
-// }
-// }
+void Left(float speed){
+  if ((100 > speed) && (speed > 0)) {
+    LeftForward(speed);
+  } else if ((0 > speed) && (speed > -100)) {
+    LeftBackward(-speed);
+  } else if (speed == 0){
+    LeftStop();
+  } else {
+  }
+}
+
+// Move forwards/backwards - this just maintains the course using a P controller
+// Positive speed = forwards, negative speed = backwards
+void Move(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float kp) {
+  float bound = 10;
+
+  if (speed < 0) bound = -bound;
+
+  float current_error = initial_x - current_x;
+
+  rightspeed = speed + kp * current_error;
+  leftspeed = speed - kp * current_error;
+
+  rightspeed = saturation(rightspeed, speed + bound, speed - bound);
+  leftspeed = saturation(leftspeed, speed + bound, speed - bound);
+
+  Right(rightspeed);
+  Left(leftspeed);  
+}
+
+// Turn on the spot - this just keeps the translational error low using a P controller. 
+// Positive speed = CCW rotation, negative speed = CW rotation
+
+void Turn(float &leftspeed,float &rightspeed,float speed,float initial_y, float current_y, float kp) {
+  float bound = 10.0;
+  float error_y = current_y - initial_y;
+
+  // correct for y-translational error
+  float y_corr = error_y * kp;
+  leftspeed = - speed - y_corr;
+  rightspeed = speed - y_corr;
+
+  Right(rightspeed);
+  Left(leftspeed);
+}
+
+// Move forwards/backwards a certain distance while maintaining course - speed can be negative
+void Translate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float distance_to_move, float kp, bool &done_translation){
+  float bound = 10.0;
+
+  if (speed < 0) bound = -bound;
+
+  float current_error = initial_x - current_x;
+
+  // simple on/off controller for distance - will make proportional
+  if (abs(current_y - initial_y) <= abs(distance_to_move)) {
+    rightspeed = speed + kp * current_error;
+    leftspeed = speed - kp * current_error;
+
+    rightspeed = saturation(rightspeed, speed + bound, speed - bound);
+    leftspeed = saturation(leftspeed, speed + bound, speed - bound);
+    
+    done_translation = false;
+
+  } else {
+    leftspeed = 0;
+    rightspeed = 0;
+    done_translation = true;
+  }
+
+  Right(rightspeed);
+  Left(leftspeed);  
+}
+
+// Rotate on the spot a certain angle, trying to maintain zero translation
+// Angles denoting anticlockwise rotation are positive
+void Rotate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float &current_angle, float start_angle, float desired_angle, float kp, bool &done_rotation) {
+
+  float bound = 10.0;
+  float track_to_sensor = 128;
+
+  if (ROVER == 2) track_to_sensor = 135;
+  
+  float error_y = current_y - initial_y;
+  float rotate_speed = speed;
+
+  current_angle = start_angle + ((current_x - initial_x) / track_to_sensor) * 180.0/3.14159;
+  float error_angle = desired_angle - current_angle;
+
+  // correct for angular error
+  // bang-bang controller for angular error
+  if (error_angle < -1) {
+    leftspeed = speed;
+    rightspeed = -speed;
+    done_rotation = false;
+  } else if (error_angle > 1) {
+    leftspeed = -speed;
+    rightspeed = speed;
+    done_rotation = false;
+  } else {
+    done_rotation = true;
+  }
+
+  // correct for y-translational error
+  float y_corr = error_y * 1;
+  leftspeed = leftspeed - y_corr;
+  rightspeed = rightspeed - y_corr;
+
+  if (done_rotation) {
+    leftspeed = 0;
+    rightspeed = 0;
+  }
+
+  Right(rightspeed);
+  Left(leftspeed);
+}
