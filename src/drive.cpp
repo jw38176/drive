@@ -3,7 +3,7 @@
 #include <vector>
 #include "drive.hpp"
 
-#define ROVER 2 // Rover 1 and 2 have slight differences. This allows the code to compensate.
+#define ROVER 1 // Rover 1 and 2 have slight differences. This allows the code to compensate.
 
 #define PWMA 2
 #define AI2 15
@@ -58,36 +58,6 @@
 #define ADNS3080_PRODUCT_ID_VAL        0x17
 #define LOW_FRAME_LOWER        0x7e
 #define LOW_FRAME_UPPER        0x0e
-
-
-
-// void ARDUINO_ISR_ATTR onTimer(){
-//   bool sample = true;
-// }
-
-
-// pi control, not sure, not used atm
-// float pi(float pi_input){
-//   float e_integration;
-//   e_integration = pi_input;
-
-//   if(initial_speed >= 100){
-//     e_integration = 0;
-//   }
-//   else if (initial_speed <= 0){
-//     e_integration = 0;
-//   }
-  
-//   delta_speed = kp*(current_error - previous_error) + ki*e_integration; //sampling time missing in ki multiplication
-//   new_speed = initial_speed + delta_speed;
-
-//   saturation(new_speed,speed_max,speed_min);
-
-//   initial_speed = new_speed;
-//   previous_error =  current_error;
-  
-//   return new_speed;
-// }
 
 int convTwosComp(int b)
 {

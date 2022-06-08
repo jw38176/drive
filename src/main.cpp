@@ -35,7 +35,7 @@ void setup() {
 
   int rc = obdI2CInit(&obd, OLED_128x64, -1, 0, 0, 1, -1, -1, -1, 800000L); // OLED display setup
 
-  //code to interrupt every 10ms
+  //code to interrupt every 2ms
   timer = timerBegin(0,80,true);
   timerAttachInterrupt(timer,&onTimer,true);
   timerAlarmWrite(timer,2000,true);
@@ -139,7 +139,7 @@ void accelerate(float &target_speed, float &accel_counter, float ticks) {
 
 void loop() {
 
-  speed = 80;
+  speed = 50;
 
   // Update the OLED - see function for what it displays
   if (counter >= 100) {
@@ -157,7 +157,7 @@ void loop() {
     // Move forward an indefinite time/distance
     if (translate) {
       accelerate(speed, accel_count, 100);  // Accelerate for 100 ticks of sample clock (200ms) BETA
-      Translate(leftspeed, rightspeed, speed, initial_x, total_x, initial_y, total_y, 200, 2, done_translate);
+      Translate(leftspeed, rightspeed, speed, initial_x, total_x, initial_y, total_y, 1000, 1.5, done_translate);
       display_error = total_x - initial_x; // Display the error from the initial x position
     } 
 
