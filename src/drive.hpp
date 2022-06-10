@@ -105,6 +105,8 @@ void Backward(float &leftspeed,float &rightspeed,float speed,float initial_x, fl
 void Move(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float kp);
 void Turn(float &leftspeed,float &rightspeed,float speed,float initial_y, float current_y, float kp);
 
+void TranslatePI(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float distance_to_move, float kp, bool &done_translation);
+
 void Clockwise(float speed, float angle);
 
 #endif

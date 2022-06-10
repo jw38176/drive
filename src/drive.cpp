@@ -240,6 +240,7 @@ void Turn(float &leftspeed,float &rightspeed,float speed,float initial_y, float 
   Left(leftspeed);
 }
 
+
 // Move forwards/backwards a certain distance while maintaining course - speed can be negative
 void Translate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float distance_to_move, float kp, bool &done_translation){
   float bound = 10.0;
@@ -309,4 +310,39 @@ void Rotate(float &leftspeed,float &rightspeed,float speed,float initial_x, floa
 
   Right(rightspeed);
   Left(leftspeed);
+}
+
+// Move forwards/backwards a certain distance while maintaining course - speed can be negative
+// Uses PI control to achieve distance
+void TranslatePI(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float distance_to_move, float kp, bool &done_translation){
+  float bound = 10.0;
+
+  if (speed < 0) bound = -bound;
+
+  float current_error = initial_x - current_x;
+  float distance_error = (current_y-initial_y) - distance_to_move;
+
+  // Proportional distance control
+  float set_speed = -distance_error * 1;
+
+  set_speed = saturation(set_speed, 80, 20);
+
+  // Set right and left speeds to correct for x-error
+  rightspeed = set_speed + kp * current_error;
+  leftspeed = set_speed - kp * current_error;
+
+  rightspeed = saturation(rightspeed, set_speed + bound, set_speed - bound);
+  leftspeed = saturation(leftspeed, set_speed + bound, set_speed - bound);
+
+  // finished
+  if (abs(distance_error) > 2 && leftspeed > 10 && rightspeed > 10) {
+    done_translation = false;
+  } else {
+    leftspeed = 0;
+    rightspeed = 0;
+    done_translation = true;
+  }
+
+  Right(rightspeed);
+  Left(leftspeed);  
 }

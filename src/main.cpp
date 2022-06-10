@@ -67,6 +67,8 @@ void setup() {
 
   arm();
 
+  mousecam_reset();
+
   interrupts();
 
   rotate = false;
@@ -104,6 +106,7 @@ float display_error; // Error that gets displayed on the OLED - multipurpose
 void set_initial_values() {
   initial_x = total_x; initial_y = total_y;
   first_iteration = false;
+  mousecam_reset();
 }
 
 // write useful state variables to the OLED display
@@ -116,7 +119,12 @@ void update_oled() {
   sprintf(szTemp, "Speed : %d", (int)speed);      obdWriteString(&obd, 0,0,22,(char *)szTemp, FONT_8x8, 0, 1);
   sprintf(szTemp, "Left  : %d", (int)leftspeed);  obdWriteString(&obd, 0,0,30,(char *)szTemp, FONT_8x8, 0, 1);
   sprintf(szTemp, "Right : %d", (int)rightspeed); obdWriteString(&obd, 0,0,38,(char *)szTemp, FONT_8x8, 0, 1);
-  sprintf(szTemp, "Angle : %d", (int)angle);      obdWriteString(&obd, 0,0,46,(char *)szTemp, FONT_8x8, 0, 1);
+
+  if (translate || !rotate) {
+    sprintf(szTemp, "Dist  : %d", (int)(total_y - initial_y));      obdWriteString(&obd, 0,0,46,(char *)szTemp, FONT_8x8, 0, 1);
+  } else if (rotate) {
+    sprintf(szTemp, "Angle : %d", (int)angle);      obdWriteString(&obd, 0,0,46,(char *)szTemp, FONT_8x8, 0, 1);
+  }
 
   if      (translate)     obdWriteString(&obd, 0,0,52,(char *)"Translating...", FONT_8x8, 0, 1);
   else if (rotate)    obdWriteString(&obd, 0,0,52,(char *)"Rotating...", FONT_8x8, 0, 1);
@@ -139,7 +147,7 @@ void accelerate(float &target_speed, float &accel_counter, float ticks) {
 
 void loop() {
 
-  speed = 50;
+  speed = 60;
 
   // Update the OLED - see function for what it displays
   if (counter >= 100) {
@@ -156,8 +164,8 @@ void loop() {
     
     // Move forward an indefinite time/distance
     if (translate) {
-      accelerate(speed, accel_count, 100);  // Accelerate for 100 ticks of sample clock (200ms) BETA
-      Translate(leftspeed, rightspeed, speed, initial_x, total_x, initial_y, total_y, 1000, 1.5, done_translate);
+      accelerate(speed, accel_count, 400);  // Accelerate for 100 ticks of sample clock (200ms) BETA
+      TranslatePI(leftspeed, rightspeed, speed, initial_x, total_x, initial_y, total_y, 1000, 3, done_translate);
       display_error = total_x - initial_x; // Display the error from the initial x position
     } 
 
@@ -176,8 +184,8 @@ void loop() {
     if (done_translate) {
       translate = false;
       first_iteration = true;
-      rotate = true;
-      done_translate = false;
+      rotate = false;
+      done_translate = true;
     } if (done_rotate) {
       rotate = false;
       first_iteration = true;
