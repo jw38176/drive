@@ -1,9 +1,16 @@
 #include <Arduino.h>
 #include "SPI.h"
 #include <vector>
-#include "opticalclass.cpp"
+#include
+
 
 #define ROVER 2 // Rover 1 and 2 have slight differences. This allows the code to compensate.
+
+#if ROVER == 1
+    float track_to_sensor = 128;
+#else
+    float track_to_sensor = 135;
+#endif
 
 #define PWMA 2
 #define AI2 15
@@ -13,204 +20,328 @@
 #define BI2 32
 #define PWMB 25
 
-// STATES
-// 0 - IDLE
-// 1 - Moving forwards/backwards (MOVE)
-// 2 - Turning CW/CCW (TURN)
-// 3 - Moving a distance (TRANSLATE)
-// 4 - Turning an angle (ROTATE)
+#define PIN_SS        5
+#define PIN_MISO      19
+#define PIN_MOSI      23
+#define PIN_SCK       18
 
-class DriveController {
+#define PIN_reset     35
+#define PIN_MOUSECAM_CS        5
 
-  // private members
+#define COUNTS_TO_MM_FACTOR 0.206375
 
-    // Optical sensor object
-    OpticalSensor os;
+#define ADNS3080_PIXELS_X                 30
+#define ADNS3080_PIXELS_Y                 30
 
-    // state of the motor controller
-    bool armed;
+#define ADNS3080_PRODUCT_ID            0x00
+#define ADNS3080_REVISION_ID           0x01
+#define ADNS3080_MOTION                0x02
+#define ADNS3080_DELTA_X               0x03
+#define ADNS3080_DELTA_Y               0x04
+#define ADNS3080_SQUAL                 0x05
+#define ADNS3080_PIXEL_SUM             0x06
+#define ADNS3080_MAXIMUM_PIXEL         0x07
+#define ADNS3080_CONFIGURATION_BITS    0x0a
+#define ADNS3080_EXTENDED_CONFIG       0x0b
+#define ADNS3080_DATA_OUT_LOWER        0x0c
+#define ADNS3080_DATA_OUT_UPPER        0x0d
+#define ADNS3080_SHUTTER_LOWER         0x0e
+#define ADNS3080_SHUTTER_UPPER         0x0f
+#define ADNS3080_FRAME_PERIOD_LOWER    0x10
+#define ADNS3080_FRAME_PERIOD_UPPER    0x11
+#define ADNS3080_MOTION_CLEAR          0x12
+#define ADNS3080_FRAME_CAPTURE         0x13
+#define ADNS3080_SROM_ENABLE           0x14
+#define ADNS3080_FRAME_PERIOD_MAX_BOUND_LOWER      0x19
+#define ADNS3080_FRAME_PERIOD_MAX_BOUND_UPPER      0x1a
+#define ADNS3080_FRAME_PERIOD_MIN_BOUND_LOWER      0x1b
+#define ADNS3080_FRAME_PERIOD_MIN_BOUND_UPPER      0x1c
+#define ADNS3080_SHUTTER_MAX_BOUND_LOWER           0x1e
+#define ADNS3080_SHUTTER_MAX_BOUND_UPPER           0x1e
+#define ADNS3080_SROM_ID               0x1f
+#define ADNS3080_OBSERVATION           0x3d
+#define ADNS3080_INVERSE_PRODUCT_ID    0x3f
+#define ADNS3080_PIXEL_BURST           0x40
+#define ADNS3080_MOTION_BURST          0x50
+#define ADNS3080_SROM_LOAD             0x60
+ 
+#define ADNS3080_PRODUCT_ID_VAL        0x17
+#define LOW_FRAME_LOWER        0x7e
+#define LOW_FRAME_UPPER        0x0e
 
-    bool translating;
-    bool rotating;
-
-    float speed; // speed to average for all the movements
-
-    float left_speed;
-    float right_speed;
-
-    // cartesian position and orientation of the rover from 'origin'
-    float x;
-    float y;
-    float angle;
-
-    // 'temporary' variables to store poisition and orientation when doing something
-    float current_x;
-    float current_y;
-    float current_angle;
-
-    // 'temporary' variables to store initial positions and orientations before doing something
-    float initial_x;
-    float initial_y;
-    float initial_angle;
-
-    // variables to store desired...
-    float desired_translation; // ...distance to move
-    float desired_angle; // ...angle to move to
-
-    // various gains
-    float translate_kp = 1.5;
-    float rotate_kp = 1;
-
-    // sets uppeer/lower limits for saturation
-    float sat_bound = 10;
-
-    // utilities    
-    float saturation(float sat_input, float upperlimit, float lowerlimit);
-    
-
-  // public members
-  public:
-    DriveController(OpticalSensor &os);
-    void Arm();
-    void Disarm();
-
-    // set initial values
-    void SetInitialValues();
-
-    // functions to do independent wheel movement
-    // speed varies from -100 to 100 here, positive moves rover forwards
-    void RightWheel(float speed);
-    void LeftWheel(float speed);
-
-    // functions to do controlled actions, but indefinite amount (i.e. no setpoint angle or distance to move to)
-    void Move(float speed);
-    void Turn(float speed);
-
-    void Run(bool sample);
-};
-
-float DriveController::saturation(float sat_input, float upperlimit, float lowerlimit){
-  if (sat_input > 0) {
-    if (sat_input > upperlimit) sat_input = upperlimit;
-    else if (sat_input < lowerlimit) sat_input = lowerlimit;
-    else sat_input = sat_input;
-  }  else {
-    if (sat_input < upperlimit) sat_input = upperlimit;     // upperlimit is more negative than lowerlimit ==> more speed
-    else if (sat_input > lowerlimit) sat_input = lowerlimit;
-    else sat_input = sat_input;
-  }
-  return sat_input;
-}
-
-DriveController::DriveController(OpticalSensor &optical_sensor) {
-  os = optical_sensor;
-}
-
-// Triggered by interrupt to run periodically in main loop
-void DriveController::Run(bool sample) {
-  if (sample) {
-    if (translating) {
-
-    } else if (rotating) {
-
+int OPTICALSENSOR::conv_twos_comp(int b)
+{
+  //Convert from 2's complement
+  if(b & 0x80){
+    b = -1 * ((b ^ 0xff) + 1);
     }
-  }
+  return b;
 }
 
-void DriveController::SetInitialValues() {
-  os.UpdatePos(current_x, current_y);
-  initial_x = current_x;
-  initial_y = current_y;
-  initial_angle = current_angle;
+void OPTICALSENSOR::reset()
+{
+  digitalWrite(PIN_reset,HIGH);
+  delay(1); // reset pulse >10us
+  digitalWrite(PIN_reset,LOW);
+  delay(35); // 35ms from reset to functional
+}
+ 
+int OPTICALSENSOR::init()
+{
+  pinMode(PIN_reset,OUTPUT);
+  pinMode(PIN_MOUSECAM_CS,OUTPUT);
+  digitalWrite(PIN_MOUSECAM_CS,HIGH);
+  reset();
+  return 1;
 }
 
-void DriveController::Move(float speed) {
-
-  float bound = sat_bound;
-  if (speed < 0) bound = -bound;
-
-  float current_error = initial_x - current_x;
-
-  right_speed = speed + translate_kp * current_error;
-  left_speed = speed - translate_kp * current_error;
-
-  right_speed = saturation(right_speed, speed + bound, speed - bound);
-  left_speed = saturation(left_speed, speed + bound, speed - bound);
-
-  RightWheel(right_speed);
-  LeftWheel(left_speed);  
-
+void OPTICALSENSOR::write_reg(int reg, int val)
+{
+  digitalWrite(PIN_MOUSECAM_CS, LOW);
+  SPI.transfer(reg | 0x80);
+  SPI.transfer(val);
+  digitalWrite(PIN_MOUSECAM_CS,HIGH);
+  delayMicroseconds(50);
 }
 
-void DriveController::Arm(){
-  digitalWrite(STNDBY, HIGH);
-  armed = true;
+int OPTICALSENSOR::read_reg(int reg)
+{
+  digitalWrite(PIN_MOUSECAM_CS, LOW);
+  SPI.transfer(reg);
+  delayMicroseconds(75);
+  int ret = SPI.transfer(0xff);
+  digitalWrite(PIN_MOUSECAM_CS,HIGH);
+  delayMicroseconds(1);
+  return ret;
+}
+ 
+void OPTICALSENSOR::read_motion(struct MD *p)
+{
+  digitalWrite(PIN_MOUSECAM_CS, LOW);
+  SPI.transfer(ADNS3080_MOTION_BURST);
+  delayMicroseconds(75);
+  p->motion =  SPI.transfer(0xff);
+  p->dx =  SPI.transfer(0xff);
+  p->dy =  SPI.transfer(0xff);
+  p->squal =  SPI.transfer(0xff);
+  p->shutter =  SPI.transfer(0xff)<<8;
+  p->shutter |=  SPI.transfer(0xff);
+  p->max_pix =  SPI.transfer(0xff);
+  digitalWrite(PIN_MOUSECAM_CS,HIGH);
+  delayMicroseconds(5);
 }
 
-void DriveController::Disarm(){
-  digitalWrite(STNDBY, LOW);
-  armed = false;
+void OPTICALSENSOR::UpdatePos(float &x,float &y){
+  MD md;
+  read_motion(&md);
+  x = x + conv_twos_comp(md.dx) * COUNTS_TO_MM_FACTOR;
+  y = y + conv_twos_comp(md.dy) * COUNTS_TO_MM_FACTOR;
 }
 
-void DriveController::RightWheel(float speed){
-
-  // convert speed to an integer.
-  int int_speed = (int)speed;
-  int duty_cycle = 0;
-
-  // forward movement
-  if ((100 > int_speed) && (int_speed > 0)) {
-
-    duty_cycle = map(int_speed,0,100,0,256);
-    digitalWrite(AI1, HIGH);
-    digitalWrite(AI2, LOW);
-
-  // backward movement
-  } else if ((0 > int_speed) && (int_speed > -100)) {
-
-    duty_cycle = map(-int_speed,0,100,0,256);
-    digitalWrite(AI1, LOW);
-    digitalWrite(AI2, HIGH);
-
-  // either zero or out of bounds: stop
-  // MUST apply saturation when using this to avoid unwanted stopping
-  } else {
-    digitalWrite(AI1, LOW);
-    digitalWrite(AI2, LOW);
-  }
-
-  analogWrite(PWMA , duty_cycle);
-
+float DRIVECONTROLLER::saturation(float sat_input, float upperlimit, float lowerlimit)
+{
+    if (sat_input > 0) 
+    {
+        if (sat_input > upperlimit) sat_input = upperlimit;
+        else if (sat_input < lowerlimit) sat_input = lowerlimit;
+        else sat_input = sat_input;
+    }  else 
+    {
+        if (sat_input < upperlimit) sat_input = upperlimit;     // upperlimit is more negative than lowerlimit ==> more speed
+        else if (sat_input > lowerlimit) sat_input = lowerlimit;
+        else sat_input = sat_input;
+    }
+    return sat_input;
 }
 
-void DriveController::LeftWheel(float speed){
+    DRIVECONTROLLER::DRIVECONTROLLER(OPTICALSENSOR &optical_sensor) {
+        os = optical_sensor;
+    }
 
-  // convert speed to an integer.
-  int int_speed = (int)speed;
-  int duty_cycle = 0;
+    void DRIVECONTROLLER::Arm(){
+        digitalWrite(STNDBY, HIGH);
+    }
 
-  // forward movement
-  if ((100 > int_speed) && (int_speed > 0)) {
+    void DRIVECONTROLLER::Disarm(){
+        digitalWrite(STNDBY, LOW);
+    }
 
-    duty_cycle = map(int_speed,0,100,0,256);
-    digitalWrite(BI1, HIGH);
-    digitalWrite(BI2, LOW);
+    void DRIVECONTROLLER::SetInitialValues() {
+        os.UpdatePos(current_x, current_y);
+        initial_x = current_x;
+        initial_y = current_y;
+        initial_angle = current_angle;
+    }
 
-  // backward movement
-  } else if ((0 > int_speed) && (int_speed > -100)) {
+    void DRIVECONTROLLER::RightWheel(float speed){
 
-    duty_cycle = map(-int_speed,0,100,0,256);
-    digitalWrite(BI1, LOW);
-    digitalWrite(BI2, HIGH);  
+    // convert speed to an integer.
+        int int_speed = (int)speed;
+        int duty_cycle = 0;
 
-  // either zero or out of bounds: stop
-  // MUST apply saturation when using this to avoid unwanted stopping
-  } else {
-    digitalWrite(BI1, LOW);
-    digitalWrite(BI2, LOW);
-  }
+    // forward movement
+        if ((100 > int_speed) && (int_speed > 0)) {
 
-  analogWrite(PWMB , duty_cycle);
+            duty_cycle = map(int_speed,0,100,0,256);
+            digitalWrite(AI1, HIGH);
+            digitalWrite(AI2, LOW);
 
-}
+        // backward movement
+        } else if ((0 > int_speed) && (int_speed > -100)) {
 
+            duty_cycle = map(-int_speed,0,100,0,256);
+            digitalWrite(AI1, LOW);
+            digitalWrite(AI2, HIGH);
+
+        // either zero or out of bounds: stop
+        // MUST apply saturation when using this to avoid unwanted stopping
+        } else {
+
+            digitalWrite(AI1, LOW);
+            digitalWrite(AI2, LOW);
+        }
+
+        analogWrite(PWMA , duty_cycle);
+    }
+
+    void DRIVECONTROLLER::LeftWheel(float speed){
+
+        // convert speed to an integer.
+        int int_speed = (int)speed;
+        int duty_cycle = 0;
+
+        // forward movement
+        if ((100 > int_speed) && (int_speed > 0)) {
+
+            duty_cycle = map(int_speed,0,100,0,256);
+            digitalWrite(BI1, HIGH);
+            digitalWrite(BI2, LOW);
+
+        // backward movement
+        } else if ((0 > int_speed) && (int_speed > -100)) {
+
+            duty_cycle = map(-int_speed,0,100,0,256);
+            digitalWrite(BI1, LOW);
+            digitalWrite(BI2, HIGH);  
+
+        // either zero or out of bounds: stop
+        // MUST apply saturation when using this to avoid unwanted stopping
+        } else {
+
+            digitalWrite(BI1, LOW);
+            digitalWrite(BI2, LOW);
+        }
+
+        analogWrite(PWMB , duty_cycle);
+
+        }
+
+    void DRIVECONTROLLER::Move(float speed) {
+
+        if (speed < 0) sat_bound = -sat_bound;
+
+        float current_error = initial_x - current_x;
+
+        right_speed = speed + translate_kp * current_error;
+        left_speed = speed - translate_kp * current_error;
+
+        right_speed = saturation(right_speed, speed + sat_bound, speed - sat_bound);
+        left_speed = saturation(left_speed, speed + sat_bound, speed - sat_bound);
+
+        RightWheel(right_speed);
+        LeftWheel(left_speed);
+    }
+
+        // needs editing
+    void DRIVECONTROLLER::Turn(float speed){
+
+        float error_y = current_y - initial_y;
+        float y_corr = error_y * translate_kp;
+        left_speed = - speed - y_corr;
+        right_speed = speed - y_corr;
+
+        Right(right_speed);
+        Left(left_speed);
+        }
+
+    void DRIVECONTROLLER::Rotate(float speed,float desired_angle){
+    
+        float error_y = current_y - initial_y;
+
+        current_angle = initial_angle + ((current_x - initial_x) / track_to_sensor) * 180.0/3.14159;
+
+        float error_angle = desired_angle - current_angle;
+
+        float set_speed = error_angle * 1.6;
+        set_speed = saturation(set_speed, speed, 20);
+
+        // correct for y-translational error
+        //might need to add kp_... instead of 1 and 1.6
+        float y_corr = error_y * 1;
+        left_speed = -set_speed - y_corr;
+        right_speed = set_speed - y_corr;
+
+        if (abs(error_angle) > 2) {
+            current_roverstate = RoverStates::ROTATE;
+        } else {
+            left_speed = 0;
+            right_speed = 0;
+        }
+        
+        Right(right_speed);
+        Left(left_speed);
+
+        current_roverstate = IDLE;
+       
+    }
+
+    void DRIVECONTROLLER::Translate(float speed,float desired_translation){
+        if (speed < 0) sat_bound = -sat_bound;
+
+        float current_error = initial_x - current_x;
+        float distance_error = (current_y-initial_y) - distance_to_move;
+
+        // Proportional distance control
+        float set_speed = -distance_error * 1;
+
+        set_speed = saturation(set_speed, speed, 20);
+
+        // Set right and left speeds to correct for x-error
+        right_speed = set_speed + kp * current_error;
+        left_speed = set_speed - kp * current_error;
+
+        right_speed = saturation(rightspeed, set_speed + sat_bound, set_speed - bound);
+        left_speed = saturation(leftspeed, set_speed + sat_bound, set_speed - bound);
+
+        // finished
+        if (abs(distance_error) > 2 && left_speed > 10 && right_speed > 10) {
+            current_roverstate = RoverStates::TRANSLATE;
+        } else {
+            left_speed = 0;
+            right_speed = 0;
+        }
+
+        Right(right_speed);
+        Left(left_speed); 
+    }
+    // Triggered by interrupt to run periodically in main loop
+    void DRIVECONTROLLER::Run(float sample) {
+
+        if (sample) {
+            case RoverStates::IDLE:Arm();
+            case RoverStates::MOVE:Move(speed);
+            case RoverStates::TURN:Turn(speed);
+            case RoverStates::ROTATE:Rotate(speed,desired_angle,initial_angle);
+            case RoverStates::TRANSLATE:Translate(speed,desired_translation);
+
+            case (current_roverstate){
+                if (current_roverstate == MOVE || current_roverstate == TRANSLATE){
+                    x = current_x;
+                    y = current_y;
+                    heading = heading + atan((x-initial_x)/(y-initial_y));
+                }else if(current_roverstate == TURN || current_roverstate == ROTATE){
+                    heading = heading + ((x - initial_x) / track_to_sensor) * 180.0/3.14159;
+                }
+            }
+        }   
+    }

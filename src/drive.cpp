@@ -3,7 +3,7 @@
 #include <vector>
 #include "drive.hpp"
 
-#define ROVER 1 // Rover 1 and 2 have slight differences. This allows the code to compensate.
+#define ROVER 2 // Rover 1 and 2 have slight differences. This allows the code to compensate.
 
 #define PWMA 2
 #define AI2 15
@@ -325,7 +325,7 @@ void TranslatePI(float &leftspeed,float &rightspeed,float speed,float initial_x,
   // Proportional distance control
   float set_speed = -distance_error * 1;
 
-  set_speed = saturation(set_speed, 80, 20);
+  set_speed = saturation(set_speed, speed, 20);
 
   // Set right and left speeds to correct for x-error
   rightspeed = set_speed + kp * current_error;
@@ -345,4 +345,38 @@ void TranslatePI(float &leftspeed,float &rightspeed,float speed,float initial_x,
 
   Right(rightspeed);
   Left(leftspeed);  
+}
+
+void RotateP(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float &current_angle, float start_angle, float desired_angle, float kp, bool &done_rotation) {
+
+  float bound = 10.0;
+  float track_to_sensor = 128;
+
+  if (ROVER == 2) track_to_sensor = 135;
+  
+  float error_y = current_y - initial_y;
+  float rotate_speed = speed;
+
+  current_angle = start_angle + ((current_x - initial_x) / track_to_sensor) * 180.0/3.14159;
+  float error_angle = desired_angle - current_angle;
+
+  float set_speed = error_angle * 1.6;
+  set_speed = saturation(set_speed, speed, 20);
+
+  // correct for y-translational error
+  float y_corr = error_y * 1;
+  leftspeed = -set_speed - y_corr;
+  rightspeed = set_speed - y_corr;
+
+
+  if (abs(error_angle) > 2) {
+    done_rotation = false;
+  } else {
+    leftspeed = 0;
+    rightspeed = 0;
+    done_rotation = true;
+  }
+  
+  Right(rightspeed);
+  Left(leftspeed);
 }

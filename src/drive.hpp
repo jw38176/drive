@@ -98,6 +98,7 @@ void LeftStop();
 
 void Rotate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float &current_angle, float start_angle, float desired_angle, float kp, bool &done_rotation);
 void Translate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float distance_to_move, float kp, bool &done_translation);
+void RotateP(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float &current_angle, float start_angle, float desired_angle, float kp, bool &done_rotation);
 
 void Forward(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float gain);
 void Backward(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float gain);
