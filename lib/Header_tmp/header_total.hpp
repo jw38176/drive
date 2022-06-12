@@ -76,6 +76,7 @@ class DriveController
     
     enum class RoverStates{IDLE, MOVE, TURN, TRANSLATE, ROTATE};
     RoverStates current_roverstate;
+    RoverStates previous_roverstate;
     
   // public members
     public:
@@ -92,6 +93,7 @@ class DriveController
         void Turn(float speed);
         void Rotate(float speed,float desired_angle);
         void Translate(float speed,float desired_translation);
+        void ChangeState(RoverStates new_roverstate);
         void Run(float sample);
 };
 
