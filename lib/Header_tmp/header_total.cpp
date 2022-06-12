@@ -301,7 +301,7 @@ void DriveController::Turn(float speed){
 void DriveController::Rotate(float speed,float desired_angle)
 {
     float error_y = current_y - initial_y;
-    current_angle = initial_angle + ((current_x - initial_x) / track_to_sensor) * 180.0/3.14159;
+    current_angle = ((current_x - initial_x) / track_to_sensor) * 180.0/3.14159;
     float error_angle = desired_angle - current_angle;
     float set_speed = error_angle * 1.6;
     set_speed = saturation(set_speed, speed, 20);
@@ -347,15 +347,32 @@ void DriveController::Translate(float speed,float desired_translation)
     LeftWheel(left_speed); 
 }
     // Triggered by interrupt to run periodically in main loop
+void DriveController::ChangeState(RoverStates new_roverstate){
+    previous_roverstate = current_roverstate;
+    current_roverstate = new_roverstate;
+}
 void DriveController::Run(float sample) {
     if (sample) {
 
         os.UpdatePos(current_x,current_y);
-        if (first_iteration) SetInitialValues();
-        sample = false;
+        if (previous_roverstate != current_roverstate)
+        {
+            if ((previous_roverstate == RoverStates::MOVE) || (previous_roverstate == RoverStates::TRANSLATE)){
+            x += current_x - initial_x;
+            y += current_y - initial_y;
+            heading = heading + atan((x)/(y));
+            }else if ((previous_roverstate == RoverStates::TURN) || (previous_roverstate == RoverStates::ROTATE)){
+            heading += ((int)current_angle % 360);
+            }
+        }
+            ReturnInfo(heading,x,y);
+            SetInitialValues();   
+        }
+        // sample = false;
+
 
         switch(current_roverstate){
-            case RoverStates::IDLE:Arm();ReturnInfo(heading,x,y);
+            case RoverStates::IDLE:Arm();
             case RoverStates::MOVE:Accelerate(accel_counter,speed,ticks);Move(speed);
             case RoverStates::TURN:Accelerate(accel_counter,speed,ticks);Turn(speed);
             case RoverStates::ROTATE:Accelerate(accel_counter,speed,ticks);Rotate(speed,desired_angle);
@@ -363,12 +380,5 @@ void DriveController::Run(float sample) {
             default: RoverStates::IDLE; first_iteration = true; accel_counter = 0;
         };
 
-        if ((current_roverstate == RoverStates::MOVE) || (current_roverstate == RoverStates::TRANSLATE)){
-            x = current_x;
-            y = current_y;
-            heading = heading + atan((x-initial_x)/(y-initial_y));
-        }else if ((current_roverstate == RoverStates::TURN) || (current_roverstate == RoverStates::ROTATE)){
-            heading = heading + ((x - initial_x) / track_to_sensor) * 180.0/3.14159;
-        }
-        } 
+         
 };
