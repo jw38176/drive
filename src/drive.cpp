@@ -226,7 +226,6 @@ void Move(float &leftspeed,float &rightspeed,float speed,float initial_x, float 
 
 // Turn on the spot - this just keeps the translational error low using a P controller. 
 // Positive speed = CCW rotation, negative speed = CW rotation
-
 void Turn(float &leftspeed,float &rightspeed,float speed,float initial_y, float current_y, float kp) {
   float bound = 10.0;
   float error_y = current_y - initial_y;
@@ -269,7 +268,7 @@ void Translate(float &leftspeed,float &rightspeed,float speed,float initial_x, f
   Left(leftspeed);  
 }
 
-// Rotate on the spot a certain angle, trying to maintain zero translation
+// Rotate on the spot by a certain angle, trying to maintain zero translation
 // Angles denoting anticlockwise rotation are positive
 void Rotate(float &leftspeed,float &rightspeed,float speed,float initial_x, float current_x, float initial_y, float current_y, float &current_angle, float start_angle, float desired_angle, float kp, bool &done_rotation) {
 
