@@ -180,7 +180,12 @@ void loop() {
       accel_count = 0;
     }
 
-    // dumbass state machine to do some control
+    // for Sean::
+    // this is an example of how to switch between translate/rotate
+    // the first iteration variable must be set to TRUE when changing states
+    // the done_rotate and done_translate flags must be set to FALSE when changing states
+    // this will be packaged neatly into a DriveController class (in development)
+    
     if (done_translate) {
       translate = false;
       first_iteration = true;
