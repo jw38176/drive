@@ -71,8 +71,8 @@ void setup() {
 
   interrupts();
 
-  rotate = false;
-  translate = true;
+  rotate = true;
+  translate = false;
 
 }
 
