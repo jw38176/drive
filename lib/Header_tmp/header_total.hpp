@@ -15,9 +15,6 @@ class OpticalSensor {
     byte max_pix;
     };
 
-  double total_x = 0;
-  double total_y = 0;
-
   void reset();
   int conv_twos_comp(int b);
   int init();
@@ -25,8 +22,9 @@ class OpticalSensor {
   int read_reg(int reg);
   void read_motion(struct MD *p);
 
+
   public:
-    OpticalSensor();
+    void InitSensor();
     void UpdatePos(float &x,float &y);
    
 };
@@ -35,7 +33,7 @@ class OpticalSensor {
 
 class DriveController 
 {
-  // private members
+  public:
 
     // Optical sensor object
     OpticalSensor os;
@@ -46,7 +44,7 @@ class DriveController
     float right_speed;
 
     float accel_counter;
-    float ticks = 100;
+    float accel_ticks = 100;
 
     
 
@@ -67,23 +65,24 @@ class DriveController
     float desired_angle; // ...angle to move to
     // various gains
     float translate_kp = 1.5;
-    float rotate_kp = 1;
+    float rotate_kp = 1.6;
+    float rotate_y_corr_kp = 1;
+
     // sets uppeer/lower limits for saturation
     float sat_bound = 10;
     // utilities    
-
-
-    
-    enum class RoverStates{IDLE, MOVE, TURN, TRANSLATE, ROTATE};
-    RoverStates current_roverstate;
-    RoverStates previous_roverstate;
     
   // public members
-    public:
-        DriveController(OpticalSensor &optical_sensor);
+
+        enum RoverStates{IDLE, MOVE, TURN, TRANSLATE, ROTATE};
+
+        RoverStates current_roverstate = IDLE;
+        RoverStates previous_roverstate = IDLE;
+
+        void InitController(OpticalSensor &optical_sensor);
         float saturation(float sat_input, float upperlimit, float lowerlimit);
-        std::vector<std::vector<std::string>> ReturnInfo(float &heading, float &x, float &y);
-        float Accelerate(float accel_counter,float speed,float ticks);
+        std::vector<std::vector<std::string>> ReturnInfo();
+        float Accelerate();
         void Arm();
         void Disarm();
         void SetInitialValues();
@@ -91,10 +90,13 @@ class DriveController
         void LeftWheel(float speed);
         void Move(float speed);
         void Turn(float speed);
-        void Rotate(float speed,float desired_angle);
-        void Translate(float speed,float desired_translation);
+        void Rotate(float speed);
+        void Translate(float speed);
         void ChangeState(RoverStates new_roverstate);
-        void Run(float sample);
+        void SetSpeed(float set_des_speed);
+        void SetAngle(float set_des_angle);
+        void SetTrans(float set_des_trans);
+        void Run(volatile bool &sample);
 };
 
 //extern DriveController DRIVECONTROLLER;

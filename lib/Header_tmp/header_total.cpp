@@ -4,8 +4,6 @@
 #include <string>
 #include "header_total.hpp"
 
-
-
 #define ROVER 2 // Rover 1 and 2 have slight differences. This allows the code to compensate.
 
 #if ROVER == 1
@@ -14,13 +12,13 @@
     float track_to_sensor = 135;
 #endif
 
-#define PWMA 2
-#define AI2 15
-#define AI1 4
-#define STNDBY 14
-#define BI1 33
-#define BI2 32
-#define PWMB 25
+#define PWMA    2
+#define AI2     15
+#define AI1     4
+#define STNDBY  14
+#define BI1     33
+#define BI2     32
+#define PWMB    25
 
 #define PIN_SS        5
 #define PIN_MISO      19
@@ -71,8 +69,7 @@
 #define LOW_FRAME_LOWER        0x7e
 #define LOW_FRAME_UPPER        0x0e
 
-OpticalSensor::OpticalSensor()
-{
+void OpticalSensor::InitSensor() {
     pinMode(PIN_SS,OUTPUT);
     pinMode(PIN_MISO,INPUT);
     pinMode(PIN_MOSI,OUTPUT);
@@ -153,11 +150,11 @@ void OpticalSensor::read_motion(struct MD *p)
 void OpticalSensor::UpdatePos(float &x,float &y){
   MD md;
   read_motion(&md);
-  x = x + conv_twos_comp(md.dx) * COUNTS_TO_MM_FACTOR;
-  y = y + conv_twos_comp(md.dy) * COUNTS_TO_MM_FACTOR;
+  x = x + (float)conv_twos_comp(md.dx) * 0.206375;
+  y = y + (float)conv_twos_comp(md.dy) * 0.206375;
 }
 
-DriveController::DriveController(OpticalSensor &optical_sensor){
+void DriveController::InitController(OpticalSensor &optical_sensor){
     os = optical_sensor;
 
     pinMode(PWMA, OUTPUT);
@@ -167,7 +164,6 @@ DriveController::DriveController(OpticalSensor &optical_sensor){
     pinMode(BI1, OUTPUT);
     pinMode(BI2, OUTPUT);
     pinMode(STNDBY, OUTPUT);
-
 
 }
 
@@ -187,17 +183,17 @@ float DriveController::saturation(float sat_input, float upperlimit, float lower
     return sat_input;
 }
 //check later
-
-std::vector<std::vector<std::string>> DriveController::ReturnInfo(float &heading, float &x, float &y){
+std::vector<std::vector<std::string>> DriveController::ReturnInfo()
+{
     std::string coordinate = ("("+std::to_string(x)+" , "+std::to_string(y)+")");
     std::string state;
-    switch (current_roverstate){
-        case RoverStates::IDLE:state = "Idle";
-        case RoverStates::MOVE:state = "Move";
-        case RoverStates::TURN:state = "Turn";
-        case RoverStates::ROTATE:state = "Rotate";
-        case RoverStates::TRANSLATE:state = "Translate";
-    }
+
+    if(current_roverstate == IDLE) state = "Idle";
+    if(current_roverstate == MOVE) state = "Move";
+    if(current_roverstate == TURN) state = "Turn";
+    if(current_roverstate == ROTATE) state = "Rotate";
+    if(current_roverstate == TRANSLATE) state = "Translate";
+
     std::vector <std::vector <std::string>> info_vect;
     std::vector <std::string> new_info;
     new_info.push_back(coordinate);new_info.push_back(std::to_string(heading));new_info.push_back(state);
@@ -205,13 +201,14 @@ std::vector<std::vector<std::string>> DriveController::ReturnInfo(float &heading
     return info_vect;    
 }
 
-float DriveController::Accelerate(float accel_counter,float speed,float ticks){
+float DriveController::Accelerate()
+{
     float new_speed = speed;
-    if (accel_counter <= ticks) {
-    new_speed = (int)(new_speed * (accel_counter/ticks));
-    accel_counter = accel_counter + 1;
-  } 
-  return new_speed;
+    if (accel_counter <= accel_ticks) {
+        new_speed = new_speed * (accel_counter/accel_ticks);
+        accel_counter = accel_counter + 1;
+    } 
+    return new_speed;
 }
 
 void DriveController::Arm(){
@@ -223,11 +220,11 @@ void DriveController::Disarm(){
 }
 
 void DriveController::SetInitialValues() {
-    os.UpdatePos(current_x, current_y);
-    initial_x = current_x;
-    initial_y = current_y;
+    os.UpdatePos(initial_x, initial_y);
     initial_angle = current_angle;
-    first_iteration = false;
+    //first_iteration = false;
+    //os.UpdatePos(current_x,current_y);
+    //initial_x = current_x;initial_y=current_y;
 }
 
 void DriveController::RightWheel(float speed)
@@ -298,31 +295,29 @@ void DriveController::Turn(float speed){
     LeftWheel(left_speed);
     }
 
-void DriveController::Rotate(float speed,float desired_angle)
+void DriveController::Rotate(float speed)
 {
     float error_y = current_y - initial_y;
     current_angle = ((current_x - initial_x) / track_to_sensor) * 180.0/3.14159;
     float error_angle = desired_angle - current_angle;
-    float set_speed = error_angle * 1.6;
+    float set_speed = error_angle * rotate_kp;
     set_speed = saturation(set_speed, speed, 20);
     // correct for y-translational error
     //might need to add kp_... instead of 1 and 1.6
-    float y_corr = error_y * 1;
+    float y_corr = error_y * rotate_y_corr_kp;
     left_speed = -set_speed - y_corr;
     right_speed = set_speed - y_corr;
-    if (abs(error_angle) > 2) {
-        current_roverstate = RoverStates::ROTATE;
-    } else {
+    if(abs(error_angle)<2) {
         left_speed = 0;
         right_speed = 0;
-        current_roverstate = RoverStates::IDLE;
+        ChangeState(IDLE);
     }
     
     RightWheel(right_speed);
     LeftWheel(left_speed);
 }
 
-void DriveController::Translate(float speed,float desired_translation)
+void DriveController::Translate(float speed)
 {
     if (speed < 0) sat_bound = -sat_bound;
     float current_error = initial_x - current_x;
@@ -337,11 +332,11 @@ void DriveController::Translate(float speed,float desired_translation)
     left_speed = saturation(left_speed, set_speed + sat_bound, set_speed - sat_bound);
     // finished
     if (abs(distance_error) > 2 && left_speed > 10 && right_speed > 10) {
-        current_roverstate = RoverStates::TRANSLATE;
+        ChangeState(TRANSLATE);
     } else {
         left_speed = 0;
         right_speed = 0;
-        current_roverstate = RoverStates::IDLE;
+        ChangeState(IDLE);
     }
     RightWheel(right_speed);
     LeftWheel(left_speed); 
@@ -351,34 +346,50 @@ void DriveController::ChangeState(RoverStates new_roverstate){
     previous_roverstate = current_roverstate;
     current_roverstate = new_roverstate;
 }
-void DriveController::Run(float sample) {
-    if (sample) {
 
+void DriveController::SetSpeed(float set_des_speed)
+{
+    speed = set_des_speed;
+}
+
+void DriveController::SetAngle(float set_des_angle)
+{
+    desired_angle = set_des_angle;
+}
+
+void DriveController::SetTrans(float set_des_trans)
+{
+    desired_translation = set_des_trans;
+}
+
+void DriveController::Run(volatile bool &sample) 
+{
+    if (sample) {
+        //Serial.println(millis());
+        Arm();
         os.UpdatePos(current_x,current_y);
+
         if (previous_roverstate != current_roverstate)
         {
-            if ((previous_roverstate == RoverStates::MOVE) || (previous_roverstate == RoverStates::TRANSLATE)){
-            x += current_x - initial_x;
-            y += current_y - initial_y;
-            heading = heading + atan((x)/(y));
-            }else if ((previous_roverstate == RoverStates::TURN) || (previous_roverstate == RoverStates::ROTATE)){
-            heading += ((int)current_angle % 360);
+            SetInitialValues();
+            accel_counter = 0;
+
+            if ((previous_roverstate == MOVE) || (previous_roverstate == TRANSLATE)){
+                x += current_x - initial_x;
+                y += current_y - initial_y;
+                heading = heading + atan(x/y);
+
+            }else if ((previous_roverstate == TURN) || (previous_roverstate == ROTATE)){
+                heading += ((int)current_angle % 360);
             }
+
+            //ReturnInfo();
         }
-            ReturnInfo(heading,x,y);
-            SetInitialValues();   
-        }
-        // sample = false;
-
-
-        switch(current_roverstate){
-            case RoverStates::IDLE:Arm();
-            case RoverStates::MOVE:Accelerate(accel_counter,speed,ticks);Move(speed);
-            case RoverStates::TURN:Accelerate(accel_counter,speed,ticks);Turn(speed);
-            case RoverStates::ROTATE:Accelerate(accel_counter,speed,ticks);Rotate(speed,desired_angle);
-            case RoverStates::TRANSLATE:Accelerate(accel_counter,speed,ticks);Translate(speed,desired_translation);
-            default: RoverStates::IDLE; first_iteration = true; accel_counter = 0;
-        };
-
-         
-};
+        if(current_roverstate == IDLE);
+        else if(current_roverstate == MOVE) Move(Accelerate());
+        else if(current_roverstate == TURN) Turn(Accelerate());
+        else if(current_roverstate == ROTATE) Rotate(Accelerate());
+        else if(current_roverstate == TRANSLATE) Translate(Accelerate());
+        sample = false;
+    }
+}
