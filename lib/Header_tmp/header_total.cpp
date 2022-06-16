@@ -25,7 +25,7 @@
 #define PIN_MOSI      23
 #define PIN_SCK       18
 
-#define PIN_reset     35
+#define PIN_reset     26
 #define PIN_MOUSECAM_CS        5
 
 #define COUNTS_TO_MM_FACTOR 0.206375
@@ -315,6 +315,7 @@ void DriveController::Rotate(float speed)
     
     RightWheel(right_speed);
     LeftWheel(left_speed);
+    
 }
 
 void DriveController::Translate(float speed)
@@ -342,7 +343,7 @@ void DriveController::Translate(float speed)
     LeftWheel(left_speed); 
 }
     // Triggered by interrupt to run periodically in main loop
-void DriveController::ChangeState(RoverStates new_roverstate){
+void DriveController::ChangeState(int new_roverstate){
     previous_roverstate = current_roverstate;
     current_roverstate = new_roverstate;
 }
@@ -365,14 +366,15 @@ void DriveController::SetTrans(float set_des_trans)
 void DriveController::Run(volatile bool &sample) 
 {
     if (sample) {
-        //Serial.println(millis());
+        //Serial.println("SAMPLE HAPPENED");
         Arm();
         os.UpdatePos(current_x,current_y);
-
+        
         if (previous_roverstate != current_roverstate)
         {
             SetInitialValues();
             accel_counter = 0;
+            previous_roverstate = current_roverstate;
 
             if ((previous_roverstate == MOVE) || (previous_roverstate == TRANSLATE)){
                 x += current_x - initial_x;
@@ -381,15 +383,17 @@ void DriveController::Run(volatile bool &sample)
 
             }else if ((previous_roverstate == TURN) || (previous_roverstate == ROTATE)){
                 heading += ((int)current_angle % 360);
-            }
+            }          
+
 
             //ReturnInfo();
         }
+        
         if(current_roverstate == IDLE);
         else if(current_roverstate == MOVE) Move(Accelerate());
         else if(current_roverstate == TURN) Turn(Accelerate());
-        else if(current_roverstate == ROTATE) Rotate(Accelerate());
         else if(current_roverstate == TRANSLATE) Translate(Accelerate());
+        else if(current_roverstate == ROTATE)Rotate(Accelerate());
         sample = false;
     }
 }

@@ -3,6 +3,9 @@
 
 #include <vector>
 
+
+
+
 class OpticalSensor {
 
   // private members
@@ -74,10 +77,14 @@ class DriveController
     
   // public members
 
-        enum RoverStates{IDLE, MOVE, TURN, TRANSLATE, ROTATE};
+        //enum RoverStates{IDLE, MOVE, TURN, TRANSLATE, ROTATE};
 
-        RoverStates current_roverstate = IDLE;
-        RoverStates previous_roverstate = IDLE;
+        //RoverStates current_roverstate = IDLE;
+        //RoverStates previous_roverstate = IDLE;
+
+        int IDLE = 0;int MOVE = 1;int TURN = 2;int TRANSLATE = 3;int ROTATE =4;
+        int current_roverstate = IDLE;
+        int previous_roverstate = IDLE;
 
         void InitController(OpticalSensor &optical_sensor);
         float saturation(float sat_input, float upperlimit, float lowerlimit);
@@ -92,7 +99,7 @@ class DriveController
         void Turn(float speed);
         void Rotate(float speed);
         void Translate(float speed);
-        void ChangeState(RoverStates new_roverstate);
+        void ChangeState(int new_roverstate);
         void SetSpeed(float set_des_speed);
         void SetAngle(float set_des_angle);
         void SetTrans(float set_des_trans);

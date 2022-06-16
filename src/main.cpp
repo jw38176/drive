@@ -24,7 +24,10 @@ OBDISP obd; // OneBitDisplay library init
 OpticalSensor os;
 DriveController rover;
 
-DriveController::RoverStates states;
+
+
+
+//DriveController::RoverStates states;
 
 void setup() {
 
@@ -46,6 +49,15 @@ void setup() {
   rover.InitController(os);
 
   interrupts();
+
+  float set_des_speed = 60;
+  float set_des_angle = 90;
+  float set_des_trans = 100;
+
+  rover.SetAngle(set_des_angle);
+  rover.SetSpeed(set_des_speed);
+  rover.SetTrans(set_des_trans);
+  rover.ChangeState(rover.ROTATE);
 
 }
 
@@ -72,17 +84,20 @@ void update_oled() {
   // else if (rover.IDLE) obdWriteString(&obd, 0,0,52,(char *)"Idle State...", FONT_8x8, 0, 1);
 
 
-
+  
+  
 
 
 
   //rover.ChangeState(rover.MOVE);  
 }
 
-  float set_des_speed = 60;
-  float set_des_angle = 90;
-  float set_des_trans = 100;
-  
+
+
+
+
+
+
 void loop() {
 
   //Serial.println(rover.current_x);
@@ -98,15 +113,10 @@ void loop() {
   //     Serial.print(" | New state: "); Serial.println(rover.current_roverstate);
   // }
 
-  rover.SetSpeed(set_des_speed);
-  rover.SetAngle(set_des_angle);
-  rover.SetTrans(set_des_trans);
-  rover.ChangeState(rover.ROTATE);
+
   rover.Run(sample);
-
-
-  if (counter >= 500) {
-    Serial.println(rover.current_roverstate);
-    counter = 0;
+  if(rover.current_roverstate == rover.IDLE){
+    rover.ChangeState(rover.MOVE);
   }
+
 }
