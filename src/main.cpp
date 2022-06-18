@@ -9,6 +9,10 @@
 
 #define ROVER 2;
 
+OBDISP obd; // OneBitDisplay library init
+OpticalSensor os;
+DriveController rover;
+
 float counter = 0;
 
 hw_timer_t * timer = NULL;
@@ -20,11 +24,9 @@ void ARDUINO_ISR_ATTR onTimer(){
   counter = counter + 1;
 }
 
-OBDISP obd; // OneBitDisplay library init
-OpticalSensor os;
-DriveController rover;
 
 
+std::vector<std::vector<String>> returnvect = rover.ReturnInfo();
 
 
 //DriveController::RoverStates states;
@@ -50,6 +52,9 @@ void setup() {
 
   interrupts();
 
+  
+ 
+
   float set_des_speed = 60;
   float set_des_angle = 90;
   float set_des_trans = 100;
@@ -57,7 +62,15 @@ void setup() {
   rover.SetAngle(set_des_angle);
   rover.SetSpeed(set_des_speed);
   rover.SetTrans(set_des_trans);
-  rover.ChangeState(rover.ROTATE);
+  rover.ChangeState(rover.TRANSLATE);
+
+  // if((rover.previous_roverstate == rover.TRANSLATE) && (rover.desired_angle>rover.current_angle)){
+  //   rover.ChangeState(rover.ROTATE);
+  // }
+  // if((rover.previous_roverstate == rover.ROTATE)&&(rover.desired_translation>rover.current_y) ){
+  //   rover.desired_translation = -rover.desired_translation;
+  //   rover.ChangeState(rover.TRANSLATE);
+  // }
 
 }
 
@@ -84,39 +97,70 @@ void update_oled() {
   // else if (rover.IDLE) obdWriteString(&obd, 0,0,52,(char *)"Idle State...", FONT_8x8, 0, 1);
 
 
-  
-  
-
-
-
   //rover.ChangeState(rover.MOVE);  
 }
 
 
-
-
-
-
-
 void loop() {
 
-  //Serial.println(rover.current_x);
 
-  //Update the OLED - see function for what it displays
-  // if (counter >= 2000) {
-  //     if (rover.current_roverstate == rover.ROTATE) rover.ChangeState(rover.MOVE);
-  //     else if (rover.current_roverstate == rover.MOVE) rover.ChangeState(rover.ROTATE);
-      
-  //     counter = 0;
-
-  //     Serial.print("Old state: "); Serial.print(rover.previous_roverstate);
-  //     Serial.print(" | New state: "); Serial.println(rover.current_roverstate);
+  // if ((rover.previous_roverstate == rover.TRANSLATE)&&(rover.current_roverstate == rover.IDLE)) {
+  //   rover.ChangeState(rover.ROTATE);
   // }
 
+  if ((rover.previous_roverstate == rover.ROTATE) && (rover.current_roverstate == rover.IDLE)) {
+    rover.SetAngle(-90);
+    rover.SetSpeed(60);
+    delay(2);
+    rover.ChangeState(rover.ROTATE); 
+  }
+  if((rover.previous_roverstate == rover.TRANSLATE) && (rover.current_roverstate == rover.IDLE)){
+    rover.SetTrans(-100);
+    rover.SetSpeed(60);
+    delay(20);
+    rover.ChangeState(rover.TRANSLATE);
+  }
 
   rover.Run(sample);
-  if(rover.current_roverstate == rover.IDLE){
-    rover.ChangeState(rover.MOVE);
+  if (counter == 300){
+      Serial.print("( ");Serial.print(rover.x);Serial.print(" , ");Serial.print(rover.y);
+      Serial.println(" )");
+      Serial.print("heading: ");Serial.println(rover.heading);
+      
+      counter = 0;
+    
+  }
+
+  
+
+  returnvect = rover.ReturnInfo();
+
+  // if (counter == 300){
+  //   for (int i=0;i<returnvect.size();i++){
+  //     for(int j=0;j<returnvect[i].size();j++){
+  //       Serial.print(" || ");Serial.print(returnvect[i][j]);
+  //     }
+  //   }
+    // Serial.print(rover.previous_roverstate);Serial.print(" || ");
+    //Serial.println(rover.current_roverstate);
+    //Serial.println(rover.Accelerate());
+    //  Serial.print(" || ");Serial.println(String(rover.current_x));
+
+    //counter = 0;
+  
+
+  //}
+
+}
+
+void FollowPattern(std::vector<std::vector<String>> instructions) {
+
+  // instructions contains commands for TRANSLATE and ROTATE
+  // these are deterministic (they will end in the IDLE state after rover has translated/rotated a certain amount)
+
+  // instruction counter
+  for (int ic = 0; ic < instructions.size(); ic ++) {
+    vector 
   }
 
 }

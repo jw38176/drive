@@ -54,7 +54,8 @@ class DriveController
     // cartesian position and orientation of the rover from 'origin'
     float x;
     float y;
-    float heading;
+    float heading = 0;
+  
     // 'temporary' variables to store poisition and orientation when doing something
     float current_x;
     float current_y;
@@ -85,10 +86,15 @@ class DriveController
         int IDLE = 0;int MOVE = 1;int TURN = 2;int TRANSLATE = 3;int ROTATE =4;
         int current_roverstate = IDLE;
         int previous_roverstate = IDLE;
+        int prev_prev_roverstate = IDLE;
 
         void InitController(OpticalSensor &optical_sensor);
         float saturation(float sat_input, float upperlimit, float lowerlimit);
-        std::vector<std::vector<std::string>> ReturnInfo();
+
+        // Structure of the vector from this function:
+        // ()
+        std::vector<std::vector<String>> ReturnInfo();
+
         float Accelerate();
         void Arm();
         void Disarm();

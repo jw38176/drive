@@ -64,7 +64,7 @@
 #define ADNS3080_PIXEL_BURST           0x40
 #define ADNS3080_MOTION_BURST          0x50
 #define ADNS3080_SROM_LOAD             0x60
- 
+
 #define ADNS3080_PRODUCT_ID_VAL        0x17
 #define LOW_FRAME_LOWER        0x7e
 #define LOW_FRAME_UPPER        0x0e
@@ -183,21 +183,38 @@ float DriveController::saturation(float sat_input, float upperlimit, float lower
     return sat_input;
 }
 //check later
-std::vector<std::vector<std::string>> DriveController::ReturnInfo()
+std::vector<std::vector<String>> DriveController::ReturnInfo()
 {
-    std::string coordinate = ("("+std::to_string(x)+" , "+std::to_string(y)+")");
-    std::string state;
+    String state;
+    float value;
+    
+    if(previous_roverstate == IDLE) state = "Idle";
+    else if(previous_roverstate == MOVE) state = "Move";
+    else if(previous_roverstate == TURN) state = "Turn";
+    else if(previous_roverstate == ROTATE) state = "Rotate";
+    else if(previous_roverstate == TRANSLATE) state = "Translate";
 
-    if(current_roverstate == IDLE) state = "Idle";
-    if(current_roverstate == MOVE) state = "Move";
-    if(current_roverstate == TURN) state = "Turn";
-    if(current_roverstate == ROTATE) state = "Rotate";
-    if(current_roverstate == TRANSLATE) state = "Translate";
+    // Right now this uses the current_x value to find the heading
+    if((previous_roverstate == TURN) || (previous_roverstate == ROTATE)) 
+    { 
+        heading = (int)((current_x/ track_to_sensor) * 180.0/3.14159) % 360;
+    } else if((previous_roverstate == MOVE) || (previous_roverstate == TRANSLATE)) {  
+        x = current_x - initial_x;
+        y = current_y - initial_y;
+        value = x;
+    }
+    String coordinate = ("("+String(x)+" , "+String(y)+")");
+    // Serial.println(heading);
+    // Serial.println(previous_roverstate);
+    
+    std::vector <std::vector <String>> info_vect;
+    std::vector <String> new_info;
+    //new_info.push_back(coordinate);new_info.push_back(String(current_angle));new_info.push_back(state);
 
-    std::vector <std::vector <std::string>> info_vect;
-    std::vector <std::string> new_info;
-    new_info.push_back(coordinate);new_info.push_back(std::to_string(heading));new_info.push_back(state);
+    new_info.push_back(state); new_info.push_back(value); new_info.push_back(state);
     info_vect.push_back(new_info);
+
+
     return info_vect;    
 }
 
@@ -220,11 +237,10 @@ void DriveController::Disarm(){
 }
 
 void DriveController::SetInitialValues() {
-    os.UpdatePos(initial_x, initial_y);
+    os.UpdatePos(current_x, current_y);
+    initial_x = current_x;
+    initial_y = current_y;
     initial_angle = current_angle;
-    //first_iteration = false;
-    //os.UpdatePos(current_x,current_y);
-    //initial_x = current_x;initial_y=current_y;
 }
 
 void DriveController::RightWheel(float speed)
@@ -299,42 +315,41 @@ void DriveController::Rotate(float speed)
 {
     float error_y = current_y - initial_y;
     current_angle = ((current_x - initial_x) / track_to_sensor) * 180.0/3.14159;
+    
     float error_angle = desired_angle - current_angle;
     float set_speed = error_angle * rotate_kp;
-    set_speed = saturation(set_speed, speed, 20);
+    set_speed = saturation(set_speed, speed, 30);
     // correct for y-translational error
     //might need to add kp_... instead of 1 and 1.6
     float y_corr = error_y * rotate_y_corr_kp;
     left_speed = -set_speed - y_corr;
     right_speed = set_speed - y_corr;
-    if(abs(error_angle)<2) {
+    if(abs(error_angle)<1) {
         left_speed = 0;
         right_speed = 0;
         ChangeState(IDLE);
     }
-    
+
     RightWheel(right_speed);
     LeftWheel(left_speed);
-    
 }
 
 void DriveController::Translate(float speed)
 {
+    
     if (speed < 0) sat_bound = -sat_bound;
     float current_error = initial_x - current_x;
     float distance_error = (current_y-initial_y) - desired_translation;
     // Proportional distance control
     float set_speed = -distance_error * 1;
-    set_speed = saturation(set_speed, speed, 20);
+    set_speed = saturation(set_speed, speed, 30);
     // Set right and left speeds to correct for x-error
     right_speed = set_speed + translate_kp * current_error;
     left_speed = set_speed - translate_kp * current_error;
     right_speed = saturation(right_speed, set_speed + sat_bound, set_speed - sat_bound);
     left_speed = saturation(left_speed, set_speed + sat_bound, set_speed - sat_bound);
     // finished
-    if (abs(distance_error) > 2 && left_speed > 10 && right_speed > 10) {
-        ChangeState(TRANSLATE);
-    } else {
+    if (abs(distance_error) < 2) {
         left_speed = 0;
         right_speed = 0;
         ChangeState(IDLE);
@@ -350,7 +365,9 @@ void DriveController::ChangeState(int new_roverstate){
 
 void DriveController::SetSpeed(float set_des_speed)
 {
-    speed = set_des_speed;
+    if ((desired_angle < 0) || (desired_translation < 0)) speed = -set_des_speed;
+    //if(current_angle > 0 && desired_angle <= 0) speed = -set_des_speed;
+    else speed = set_des_speed;
 }
 
 void DriveController::SetAngle(float set_des_angle)
@@ -366,34 +383,36 @@ void DriveController::SetTrans(float set_des_trans)
 void DriveController::Run(volatile bool &sample) 
 {
     if (sample) {
-        //Serial.println("SAMPLE HAPPENED");
+
         Arm();
         os.UpdatePos(current_x,current_y);
         
+        
         if (previous_roverstate != current_roverstate)
         {
-            SetInitialValues();
-            accel_counter = 0;
             previous_roverstate = current_roverstate;
+            
+            SetInitialValues();
+            //Serial.println("Changed state.");
 
-            if ((previous_roverstate == MOVE) || (previous_roverstate == TRANSLATE)){
-                x += current_x - initial_x;
-                y += current_y - initial_y;
-                heading = heading + atan(x/y);
+            // if ((previous_roverstate == MOVE) || (previous_roverstate == TRANSLATE)){
+            //     x += current_x - initial_x;
+            //     y += current_y - initial_y;
+            //     heading = heading + atan(x/y);
 
-            }else if ((previous_roverstate == TURN) || (previous_roverstate == ROTATE)){
-                heading += ((int)current_angle % 360);
-            }          
+            // }else if ((previous_roverstate == TURN) || (previous_roverstate == ROTATE)){
+            //     heading += ((int)current_angle % 360);
+            // }
 
-
-            //ReturnInfo();
+            ReturnInfo();          
         }
-        
-        if(current_roverstate == IDLE);
+
+        if(current_roverstate == IDLE) {accel_counter=0;}
         else if(current_roverstate == MOVE) Move(Accelerate());
         else if(current_roverstate == TURN) Turn(Accelerate());
         else if(current_roverstate == TRANSLATE) Translate(Accelerate());
-        else if(current_roverstate == ROTATE)Rotate(Accelerate());
+        else if(current_roverstate == ROTATE) Rotate(Accelerate());
+
         sample = false;
     }
 }
