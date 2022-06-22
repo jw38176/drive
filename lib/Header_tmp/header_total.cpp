@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include "header_total.hpp"
+#include <OneBitDisplay.h>
 
 #define ROVER 2 // Rover 1 and 2 have slight differences. This allows the code to compensate.
 
@@ -396,4 +397,24 @@ void DriveController::Run(volatile bool &sample)
         else if(current_roverstate == ROTATE)Rotate(Accelerate());
         sample = false;
     }
+}
+
+void update_oled(float display_error, DriveController rover, OBDISP &obd) {
+
+  char szTemp[32];
+  obdFill(&obd, 0x0, 1);
+
+  sprintf(szTemp, "Err : %f", display_error);   obdWriteString(&obd, 0,0,0,(char *)szTemp, FONT_12x16, 1, 1);
+  sprintf(szTemp, "Speed : %d", (int)rover.speed);      obdWriteString(&obd, 0,0,22,(char *)szTemp, FONT_8x8, 0, 1);
+  sprintf(szTemp, "Left  : %d", (int)rover.left_speed);  obdWriteString(&obd, 0,0,30,(char *)szTemp, FONT_8x8, 0, 1);
+  sprintf(szTemp, "Right : %d", (int)rover.right_speed); obdWriteString(&obd, 0,0,38,(char *)szTemp, FONT_8x8, 0, 1);
+
+  if (rover.current_roverstate == rover.TRANSLATE || !rover.current_roverstate == rover.ROTATE){
+    sprintf(szTemp, "Dist  : %d", (int)(rover.current_y - rover.initial_y));      obdWriteString(&obd, 0,0,46,(char *)szTemp, FONT_8x8, 0, 1);
+  } else if (rover.current_roverstate==rover.ROTATE){
+    sprintf(szTemp, "Angle : %d", (int)rover.current_angle);      obdWriteString(&obd, 0,0,46,(char *)szTemp, FONT_8x8, 0, 1);
+  }
+  // if      (rover.TRANSLATE) obdWriteString(&obd, 0,0,52,(char *)"Translating...", FONT_8x8, 0, 1);
+  // else if (rover.ROTATE)    obdWriteString(&obd, 0,0,52,(char *)"Rotating...", FONT_8x8, 0, 1);
+  // else if (rover.IDLE) obdWriteString(&obd, 0,0,52,(char *)"Idle State...", FONT_8x8, 0, 1);
 }
